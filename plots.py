@@ -24,7 +24,6 @@ def acf(y,max_lag):
     #Estimating ACs for lag 1...h
     for h in range(end):
         acf_h = sum((y[h:]-y_mean)*(y[:(y_len-h)]-y_mean))/var
-        print(acfs)
         acfs[h] = acf_h
     
     return(acfs)
