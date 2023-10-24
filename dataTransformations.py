@@ -40,7 +40,8 @@ dfY=dfY.iloc[804:1116,]
 df=pd.DataFrame(index=range(312),columns=range(4))
 df.iloc[:,0]=dfY
 df.iloc[:,1]=df11
-df.iloc[:,2]=df2
+#print(df2)
+df.iloc[:,2]=df2.iloc[:,1]
 df.iloc[:,3]=df3
 df=df.rename(columns={0:"CPI",1:"Monthly salary",2:"Policy rate",3:"Unemployed"})
 print(df.head())
