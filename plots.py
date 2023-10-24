@@ -49,6 +49,40 @@ def acf_plot(x):
     plt.title("Autocorrelation function (ACF)")
     plt.show()
 
-my_acf = acf(y, 21)
-acf_plot(my_acf)
+#my_acf = acf(y, 21)
+#acf_plot(my_acf)
 
+#PACF
+def pacf(y, max_lag):
+    acfs = acf(y, max_lag)
+    thetas = np.zeros((max_lag+1, max_lag+1))
+    #Calculating PACFs.
+    for i in range(1, max_lag+1):
+        numerator = acfs[i]
+        denominator = 1
+        for k in range(1, i):
+            if k == i-1:
+                numerator -= thetas[k,k]*acfs[i-k]
+                denominator -= thetas[k,k]*acfs[k]
+            else:
+                thetas[i-1, k] = thetas[i-2, k]-thetas[i-1, i-1]*thetas[i-2, i-1-k]
+                numerator -= thetas[i-1, k]*acfs[i-k]
+                denominator -= thetas[i-1, k]*acfs[k]
+        thetas[i,i] = numerator/denominator
+    pacfs = np.diagonal(thetas)
+    return pacfs
+
+def pacf_plot(x):
+    xc = range(len(x))
+    for j in xc:
+        plt.plot((xc[j], xc[j]), (0, x[j]), "b-")
+    plt.plot((0, xc[-1]), (0,0), "k-")
+    plt.plot((0, xc[-1]), (2*1/np.sqrt(len(xc)), 2*1/np.sqrt(len(xc))), "c--")
+    plt.plot((0, xc[-1]), (-2/np.sqrt(len(xc)), -2/np.sqrt(len(xc))), "c--")
+    plt.xlabel("Lag")
+    plt.ylabel("PACF")
+    plt.title("Partial Autocorrelation function (PACF)")
+    plt.show()
+
+#my_pacf = pacf(y, 21)
+#pacf_plot(my_pacf)
