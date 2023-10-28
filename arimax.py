@@ -20,7 +20,7 @@ class ARMAX:
            # TODO : Implement for MA
             
            # Calculate the residuals
-            res = predict(data, exo_data) - data[self.p:]
+            res = self.predict(data, exo_data) - data[self.p:]
            # Update the variables along the gradient
             phi_step = np.dot(res, data[:-self.p])
             beta_step = np.dot(res, exo_data[self.p:])
