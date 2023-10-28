@@ -14,21 +14,28 @@ class ARMAX:
         self.beta = np.zeros(num_exo)
         pass
    
-    def fit(self, data, exo_data, alpha, stop_len):
+    def fit(self, data, exo_data, alpha_phi, alpha_beta, stop_len):
        step_len = np.inf
        while(step_len > stop_len):
            # TODO : Implement for MA
             
            # Calculate the residuals
             res = self.predict(data, exo_data) - data[self.p:]
+            print(res)
            # Update the variables along the gradient
             phi_step = np.dot(res, data[:-self.p])
             beta_step = np.dot(res, exo_data[self.p:])
            # calculate length of total step
-            step_len = alpha*(la.norm(phi_step) + la.norm(beta_step))
+            step_len = alpha_phi*la.norm(phi_step) + alpha_beta*la.norm(beta_step)
 
-            self.phi += alpha*phi_step
-            self.beta += alpha*beta_step
+            self.phi -= alpha_phi*phi_step
+            self.beta -= alpha_beta*beta_step
+
+            print(self.beta)
+            print(self.phi)
+       print('final')
+       print(self.beta)
+       print(self.phi)
 
     def predict(self, data, exo_data):
         """
@@ -38,6 +45,7 @@ class ARMAX:
         exog_term = np.dot(exo_data[self.p:], self.beta)
         x_t = ar_term + exog_term 
         # These are predictions not containg the first p values
+        
         return x_t
 
 
