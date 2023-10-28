@@ -25,7 +25,7 @@ class ARMAX:
             phi_step = np.dot(res, data[:-self.p])
             beta_step = np.dot(res, exo_data[self.p:])
            # calculate length of total step
-            step_len = alpha*(la.norm(phi_step) + la_norm(beta_step))
+            step_len = alpha*(la.norm(phi_step) + la.norm(beta_step))
 
             self.phi += alpha*phi_step
             self.beta += alpha*beta_step
@@ -34,8 +34,8 @@ class ARMAX:
         """
         Makes a prediction at times t
         """
-        ar_term = np.convolve(self.phi, data[:-self.p], 'valid')
-        exog_term = np.dot(self.beta, exo_data[self.p:])
+        ar_term = np.convolve(data[:-self.p], self.phi, 'valid')
+        exog_term = np.dot(exo_data[self.p:], self.beta)
         x_t = ar_term + exog_term 
         # These are predictions not containg the first p values
         return x_t
