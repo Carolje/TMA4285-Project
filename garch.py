@@ -138,38 +138,3 @@ def Hessian_1(alphas,betas,r,sigma):
     b=1/(np.transpose(P)@K)
     hess = -(len(r))/2 * (1/b)**(-2) * np.transpose(K)@K + 1/4 * sum(np.square(r))*b**(-3) * np.transpose(K)@K
     return hess
-
-
-
-def garch_fit(alphas_init, betas_init, tol, r, maxiter,p,q,sigma_init,N):
-    not_tol=True
-    i=0
-    sigma_prevs=[sigma_init]
-    r_prevs=[r[0]]
-    n_a=len(alphas_init)
-    n_b=len(betas_init)
-    params_old=[alphas_init,betas_init]
-    while not_tol and i<maxiter:
-        sigma=sigma_t(r_prevs,sigma_prevs,params_old[:n_a],params_old[n_a:],p,q)
-        #minimize log likelihood and get parameter estimates
-        result=minimize(likelihood,params_old,method="BFGS")
-        new_params=result.x
-    
-
-    #Calculate score vector and Hessian
-        alphas=new_params[:n_a]
-        betas=new_params[:n_b]
-        s=score(alphas,betas,r_prevs,r[i+1],sigma_prevs,sigma,N)
-        H=Hessian(alphas,betas,r_prevs,r[i+1],sigma_prevs,sigma,N)
-
-    #Update params
-        params_new=params_old-np.linalg.inv(H)@s
-    #Check if difference for all params alpha and beta are smaller than tol
-        if params_new<tol:
-            not_tol=False
-
-        i+=1
-        params_old=params_new
-    #If yes break loop, if not continue to iterate and smaller than maxiter
-
-
