@@ -74,7 +74,7 @@ def garch_fit(alphas_init, betas_init,tol,r,maxiter,p,q,sigma_init,N):
     while not_tol and i<maxiter:
         sigma=sigma_t(r_prevs,sigma_prevs,params_old[:n_a],params_old[n_a:],p,q)
         #minimize log likelihood and get parameter estimates
-        result=minimize(likelihood,params_old,method="BFGS")
+        result=minimize(likelihood,params_old,method="BFGS", jac = score_1, hess = Hessian_1)
         new_params=result.x
     
 
