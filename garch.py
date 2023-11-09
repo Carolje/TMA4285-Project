@@ -6,26 +6,33 @@ import dataTransformations as dF
 
 df=pd.read_csv("Data1997-2022.csv")
 
-cpi_diff=dF.differencing(df[:,1],12)
+cpi_diff=dF.differencing(df.iloc[:,1],12)
+r = np.zeros(len(cpi_diff))
 
-r_prev = np.zeros(len(cpi_diff))
 
-
-for i in range(len(cpi_diff)):
-    r_prev[i] = (cpi_diff[i+1]-cpi_diff[i])/cpi_diff[i]
-
-print(r_prev)
+for i in range(1,len(cpi_diff)):
+    r[i] = (cpi_diff[i]-cpi_diff[i-1])/cpi_diff[i-1]
 
 def r_t(sigma,epsilon):
     return sigma*epsilon
 def sigma_t(r_prev,sigma_prev,alphas,betas,p,q):
-    r_prev = np.append(1,r_prev)
+    r_prev = np.append(r_prev,1)
     a=0
     b=0
     for i in range(p):
         a+=alphas[i]*r_prev[-i]**2
     for i in range(q):
         b+=betas[i]*sigma_prev[-i]**2
+    return np.sqrt(a+b)
+
+def sigma_t_l(r_prev,sigma_prev,params,p,q):
+    r_prev = np.append(r_prev,1)
+    a=0
+    b=0
+    for i in range(p):
+        a+=params[i]*r_prev[-i]**2
+    for i in range(q):
+        b+=params[p+i]*sigma_prev[-i]**2
     return np.sqrt(a+b)
 def likelihood(r,sigma,T):
     L=1
@@ -34,9 +41,30 @@ def likelihood(r,sigma,T):
     l=-np.log(L)
     return l
 
+def logLikelihood(P,*args):
+    r,sigma,t,n_a,n_b=args
+    r_new = [r[i] for i in range(len(r)-1,-1,-1)]
+    sigma_new = [sigma[i] for i in range(len(sigma)-1,-1,-1)]
+    r_i = np.append(r_new,1)
+    r_i=np.array(r_i)
+    sigma_new=np.array(sigma_new)
+
+    #P = np.concatenate(alphas, betas) #Combine alphas and betas into one parameter vector!
+    K = np.concatenate((r_i[:n_a],sigma_new[:n_b])) #Combine r_i and sigma into one vector. 
+    # if(len(P)>len(K)):
+    #     m=len(P)-len(K)
+    #     m=int(m/2)
+    #     b=int((len(P)-1)/2)
+    #     b=int(b-m)
+    #     P=np.concatenate((P[0:b+1],P[b+m+1:-m]))
+    L=1
+    for ti in range(t):
+        L=L*(1/(np.sqrt(2*np.pi*np.transpose(P)@K))*np.exp(-1/2*r[ti]**2/(np.transpose(P)@K)**2))
+    l=-np.log(L)
+    return l
 
 #SUSAN ZONE
-def score_1(alphas,betas,r,sigma):
+def score_1(P,*args):
     """
     Computes the score vector of the log-likelihood of a GARCH(q,p)-model with respect to the vector
     where vectors alphas and betas are concatenated.
@@ -49,14 +77,21 @@ def score_1(alphas,betas,r,sigma):
 
     Returns: score, a ((p+q+1)x1) vector.
     """
+    r,sigma,t,n_a,n_b=args
     r_new = [r[i] for i in range(len(r)-1,-1,-1)]
     sigma_new = [sigma[i] for i in range(len(sigma)-1,-1,-1)]
-    r_i = np.append(1, r_new)
-    P = np.concatenate(alphas, betas) #Combine alphas and betas into one parameter vector!
-    K = np.concatenate(r_i[:len(alphas)], sigma_new[:len(betas)]) #Combine r_i and sigma into one vector. 
+    r_i = np.append(r_new,1)
+    #P = np.concatenate(alphas, betas) #Combine alphas and betas into one parameter vector!
+    K = np.concatenate((r_i[:n_a], sigma_new[:n_b])) #Combine r_i and sigma into one vector. 
+    # if(len(P)>len(K)):
+    #     m=len(P)-len(K)
+    #     m=int(m/2)
+    #     b=int((len(P)-1)/2)
+    #     b=int(b-m)
+    #     P=np.concatenate((P[0:b+1],P[b+m+1:-m]))
     b=1/(np.transpose(P)@K)
     score = (len(r))/2 * (1/b) * np.transpose(K) -1/2 * sum(np.square(r))*(b)**(-2) * np.transpose(K)
-
+    return score
 
 def Hessian_1(alphas,betas,r,sigma):
     """
@@ -73,7 +108,7 @@ def Hessian_1(alphas,betas,r,sigma):
     """
     r_new = [r[i] for i in range(len(r)-1,-1,-1)]
     sigma_new = [sigma[i] for i in range(len(sigma)-1,-1,-1)]
-    r_i = np.append(1, r_new)
+    r_i = np.append(r_new,1)
     P = np.concatenate(alphas, betas) #Combine alphas and betas into one parameter vector!
     K = np.concatenate(r_i[:len(alphas)], sigma_new[:len(betas)]) #Combine r_i and sigma into one vector. 
     b=1/(np.transpose(P)@K)
@@ -83,30 +118,42 @@ def Hessian_1(alphas,betas,r,sigma):
 def garch_fit(alphas_init,betas_init,tol,r,maxiter,p,q,sigma_init,N):
     not_tol=True
     i=0
-    sigma_prevs=[sigma_init]
-    r_prevs=[r[0]]
+    sigma_prevs=np.array([sigma_init])
+    r_prevs=np.array([r[0]])
     n_a=len(alphas_init)
     n_b=len(betas_init)
-    params_old=[alphas_init,betas_init]
+    params_old=np.concatenate((alphas_init,betas_init))
     while not_tol and i<maxiter:
-        sigma=sigma_t(r_prevs,sigma_prevs,params_old[:n_a],params_old[n_a:],p,q)
+        sigma=sigma_t_l(r_prevs,sigma_prevs,params_old,p,q)
         #minimize log likelihood and get parameter estimates
-        result=minimize(likelihood,params_old,method="BFGS", jac = score_1, hess = Hessian_1)
+        if(len(params_old)>(len(r_prevs)+len(sigma_prevs))):
+            m=len(params_old)-(len(r_prevs)+len(sigma_prevs))
+            m=int(m/2)
+            b=int((len(params_old)-1)/2)
+            b=int(b-m)
+            params_old=np.concatenate((params_old[0:b+1],params_old[b+m+1:-m]))
+        result=minimize(logLikelihood,params_old,method="BFGS", jac = score_1,args=(r_prevs,sigma_prevs,i+1,n_a,n_b))
+        #, hess = Hessian_1)
         new_params=result.x
     
 
     #Check if difference in Euclidian norm are smaller than tol 
-        if norm(params_old - new_params)<tol:
+        if np.linalg.norm(params_old - new_params)<tol:
             not_tol=False
 
         i+=1
         params_old=new_params
+        r_prevs=np.append(r_prevs,r[i])
+        sigma_prevs=np.append(sigma_prevs,sigma)
     #If yes break loop, if not continue to iterate and smaller than maxiter
+    return params_old,i,sigma_prevs,r_prevs
 
 
-
-
-
+params,i,sigma_prevs,r_prevs=garch_fit(alphas_init=np.array([0.1,0.1,0.1]),betas_init=np.array([0.1,0.1]),tol=0.01,r=r,maxiter=100,p=2,q=2,sigma_init=0.01,N=len(r))
+print("params=",params)
+print("i",i)
+print("r_prevs",r_prevs)
+print("sigma_prevs",sigma_prevs)
 
 
 
@@ -159,13 +206,14 @@ def Hessian(alphas,betas,r_prevs,r_t,sigma_prevs,sigma_t,N):
 def garch_fit(alphas_init, betas_init,tol,r,maxiter,p,q,sigma_init,N):
     not_tol=True
     i=0
-    sigma_prevs=[sigma_init]
+    sigma_prevs=[]
     r_prevs=[r[0]]
     n_a=len(alphas_init)
     n_b=len(betas_init)
     params_old=[alphas_init,betas_init]
     while not_tol and i<maxiter:
         sigma=sigma_t(r_prevs,sigma_prevs,params_old[:n_a],params_old[n_a:],p,q)
+        
         #minimize log likelihood and get parameter estimates
         result=minimize(likelihood,params_old,method="BFGS", jac = score_1, hess = Hessian_1)
         new_params=result.x
