@@ -26,7 +26,11 @@ def sigma_t(r_prev,sigma_prev,alphas,betas,p,q):
     return np.sqrt(a+b)
 
 def sigma_t_l(r_prev,sigma_prev,params,p,q):
+    
     r_prev = np.append(r_prev,1)
+    print(r_prev)
+    print(sigma_prev)
+    print(params)
     a=0
     b=0
     for i in range(p):
@@ -131,13 +135,16 @@ def garch_fit(alphas_init,betas_init,tol,r,maxiter,p,q,sigma_init,N):
             m=int(m/2)
             b=int((len(params_old)-1)/2)
             b=int(b-m)
-            params_old=np.concatenate((params_old[0:b+1],params_old[b+m+1:-m]))
-        result=minimize(logLikelihood,params_old,method="BFGS", jac = score_1,args=(r_prevs,sigma_prevs,i+1,n_a,n_b))
+            params_old_s=np.concatenate((params_old[0:b+1],params_old[b+m+1:-m]))
+        result=minimize(logLikelihood,params_old_s,method="BFGS", jac = score_1,args=(r_prevs,sigma_prevs,i+1,n_a,n_b))
         #, hess = Hessian_1)
         new_params=result.x
     
 
     #Check if difference in Euclidian norm are smaller than tol 
+        if(len(params_old)>len(new_params)):
+            new_params=[]
+            #Continue here to fix this problem
         if np.linalg.norm(params_old - new_params)<tol:
             not_tol=False
 
