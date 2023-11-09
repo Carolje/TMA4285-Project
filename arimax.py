@@ -2,6 +2,7 @@
 import numpy as np
 import numpy.linalg as la
 from statsmodels.tsa.arima.model import ARIMA
+import scipy.optimize as opt
 
 
 class ARMAX:
@@ -21,7 +22,35 @@ class ARMAX:
       # TODO: Initalize vector for exogenous parameters
       self.beta = np.zeros(num_exo)
       pass
-  
+
+    def kalman_log_likelihood(self, mu_0, sigma_0):
+        x_t, P_t = mu_0, sigma_0
+
+        x_pred_vec = np.zeros_like(foo)
+        P_pred_vec = np.zeros_like(foo)
+        ll = 0
+        for i in range(something):
+            # prediction
+            x_t_1 = evo_matrix @ x_t
+            P_t_1 = evo_matrix @ P_t @ evo_matrix.T + state_sigma2
+
+            x_pred_vec[i] = x_t_1
+            P_pred_vec[i] = P_t_1
+
+            #kalman gain
+            M = np.linalg.inv(obsv_matrix @ P_t_1 @ obsv_matrix + obsv_sigma2)
+            K_t = P_t_1 @ obsv_matrix.T @ M
+
+            #Filter
+            x_t = x_t_1 + K_t @ (y_t - obsv_matrix @ x_t_1)
+            P_t = (1 - K_t @ obsv_matrix) @ P_t_1
+
+        #TODO : Append the x_t-s to a an array
+
+        ll = np.sum(np.log(obsv_matrix @ P_t_1 @ obsv_matrix.T)) + np.sum()
+
+    def fit_kalman(self):
+         opt.minimize(self.kalman_log_likelihood, method ='BFGS')
    
     def fit(self):
         step_len = np.inf
