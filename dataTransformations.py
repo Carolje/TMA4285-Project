@@ -57,7 +57,7 @@ pacf_CPI=plots.pacf(np.array(df.iloc[:,1]),24)
 
 def differencing(covariate,n):
     cpi=np.array(covariate)
-    cpi1=cpi[0:-n]
-    cpi2=cpi[n:]
+    cpi1=cpi[n:]
+    cpi2=cpi[:-n]
     cpi_diff=cpi1-cpi2
     return cpi_diff

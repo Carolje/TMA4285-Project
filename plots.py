@@ -30,7 +30,7 @@ def acf(y,max_lag):
 
 my_acf = acf(y, 21)
 
-def acf_plot(x):
+def acf_plot(x, n):
     """
     Creates an ACF-plot from a vector of ACFs, by using property 1.2 (Shumway & Stoffer, 2017, p. 28).
 
@@ -41,8 +41,8 @@ def acf_plot(x):
     for j in xc:
         plt.plot((xc[j], xc[j]), (0, x[j]), "b-")
     plt.plot((0, xc[-1]), (0,0), "k-")
-    plt.plot((0, xc[-1]), (2*1/np.sqrt(len(xc)), 2*1/np.sqrt(len(xc))), "c--")
-    plt.plot((0, xc[-1]), (-2/np.sqrt(len(xc)), -2/np.sqrt(len(xc))), "c--")
+    plt.plot((0, xc[-1]), (2*1/np.sqrt(n), 2*1/np.sqrt(n)), "c--")
+    plt.plot((0, xc[-1]), (-2/np.sqrt(n), -2/np.sqrt(n)), "c--")
     plt.xlabel("Lag")
     plt.ylabel("ACF")
     plt.title("Autocorrelation function (ACF)")
@@ -71,13 +71,13 @@ def pacf(y, max_lag):
     pacfs = np.diagonal(thetas)
     return pacfs
 
-def pacf_plot(x):
+def pacf_plot(x, n):
     xc = range(len(x))
     for j in xc:
         plt.plot((xc[j], xc[j]), (0, x[j]), "b-")
     plt.plot((0, xc[-1]), (0,0), "k-")
-    plt.plot((0, xc[-1]), (2*1/np.sqrt(len(xc)), 2*1/np.sqrt(len(xc))), "c--")
-    plt.plot((0, xc[-1]), (-2/np.sqrt(len(xc)), -2/np.sqrt(len(xc))), "c--")
+    plt.plot((0, xc[-1]), (2*1/np.sqrt(n), 2*1/np.sqrt(n)), "c--")
+    plt.plot((0, xc[-1]), (-2/np.sqrt(n), -2/np.sqrt(n)), "c--")
     plt.xlabel("Lag")
     plt.ylabel("PACF")
     plt.title("Partial Autocorrelation function (PACF)")
