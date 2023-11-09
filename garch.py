@@ -112,9 +112,11 @@ def score_1(alphas,betas,r,sigma):
 
     Returns: score, a ((p+q+1)x1) vector.
     """
-    r_i = np.append(1, r)
+    r_new = [r[i] for i in range(len(r)-1,-1,-1)]
+    sigma_new = [sigma[i] for i in range(len(sigma)-1,-1,-1)]
+    r_i = np.append(1, r_new)
     P = np.concatenate(alphas, betas) #Combine alphas and betas into one parameter vector!
-    K = np.concatenate(r_i[:len(alphas)], sigma[:len(betas)]) #Combine r_i and sigma into one vector. 
+    K = np.concatenate(r_i[:len(alphas)], sigma_new[:len(betas)]) #Combine r_i and sigma into one vector. 
     b=1/(np.transpose(P)@K)
     score = (len(r))/2 * (1/b) * np.transpose(K) -1/2 * sum(np.square(r))*(b)**(-2) * np.transpose(K)
 
@@ -132,9 +134,11 @@ def Hessian_1(alphas,betas,r,sigma):
     
     Returns: hess, a ((p+1+q)x(p+1+q)) matrix.
     """
-    r_i = np.append(1, r)
+    r_new = [r[i] for i in range(len(r)-1,-1,-1)]
+    sigma_new = [sigma[i] for i in range(len(sigma)-1,-1,-1)]
+    r_i = np.append(1, r_new)
     P = np.concatenate(alphas, betas) #Combine alphas and betas into one parameter vector!
-    K = np.concatenate(r_i[:len(alphas)], sigma[:len(betas)]) #Combine r_i and sigma into one vector. 
+    K = np.concatenate(r_i[:len(alphas)], sigma_new[:len(betas)]) #Combine r_i and sigma into one vector. 
     b=1/(np.transpose(P)@K)
     hess = -(len(r))/2 * (1/b)**(-2) * np.transpose(K)@K + 1/4 * sum(np.square(r))*b**(-3) * np.transpose(K)@K
     return hess
