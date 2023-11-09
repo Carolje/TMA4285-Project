@@ -36,12 +36,13 @@ class ARMAX:
       #  print('final')
       #  print(self.beta)
       #  print(self.phi)
+      
 
     def predict(self, data, exo_data):
         """
         Makes a prediction at times t
         """
-        ar_term = np.convolve(data[:-self.p], self.phi, 'valid')
+        ar_term = np.convolve(data[:-1], self.phi, 'valid')   # TODO : Think about if this is right with the self.p stop on data
         exog_term = np.dot(exo_data[self.p:], self.beta)
         x_t = ar_term + exog_term 
         # These are predictions not containg the first p values
