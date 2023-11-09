@@ -21,24 +21,27 @@ class ARMAX:
       # TODO: Initalize vector for exogenous parameters
       self.beta = np.zeros(num_exo)
       pass
+  
    
     def fit(self):
         step_len = np.inf
         while(step_len > self.stop_len):
            # TODO : Implement for MA
-            
-           # Calculate the residuals
-           res = self.predict() - self.data[self.p:]
-            
-           # Update the variables along the gradient
-           phi_step = np.dot(res, self.data[:-self.p])
-           beta_step = np.dot(res, self.exog[self.p:])
-           # calculate length of total step
-           step_len = self.alpha_phi*la.norm(phi_step) + self.alpha_beta*la.norm(beta_step)
-
-           self.phi -= self.alpha_phi*phi_step
-           self.beta -= self.alpha_beta*beta_step
-
+           
+           
+           # AR
+           if self.p != 0:
+               # Calculate the residuals
+               res = self.predict() - self.data[self.p-1:]
+                
+               # Update the variables along the gradient
+               phi_step = np.dot(res, self.data[self.p-1:])
+               beta_step = np.dot(res, self.exog[self.p-1:])
+               # calculate length of total step
+               step_len = self.alpha_phi*la.norm(phi_step) + self.alpha_beta*la.norm(beta_step)
+    
+               self.phi -= self.alpha_phi*phi_step
+               self.beta -= self.alpha_beta*beta_step
            #print(self.beta)
            #print(self.phi)
         print("final")
@@ -49,10 +52,11 @@ class ARMAX:
         """
         Makes a prediction at times t
         """
-        ar_term = np.convolve(self.data[:-self.p], self.phi, 'valid')
-        exog_term = np.dot(self.exog[self.p:], self.beta)
+        ar_term = np.convolve(self.data, self.phi, 'valid')
+        exog_term = np.dot(self.exog[self.p-1:], self.beta)
         x_t = ar_term + exog_term 
         # These are predictions not containg the first p values
+
         
         return x_t
     

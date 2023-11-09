@@ -26,7 +26,7 @@ result = model1.fit()
 result.summary()
 
 
-ARX = model.ARMAX(1, 12, 0, 3,cpi_diff12[12:], exog[12:])
+ARX = model.ARMAX(2, 12, 0, 3,cpi_diff12[12:], exog[12:])
 ARX.fit()
 ARX.summary()
 ARX.pythonSolution()
