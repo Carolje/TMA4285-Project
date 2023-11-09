@@ -1,25 +1,118 @@
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
+from numpy.linalg import norm
+import dataTransformations as dF
 
+df=pd.read_csv("Data1997-2022.csv")
+
+cpi_diff=dF.differencing(df[:,1],12)
+
+r_prev = np.zeros(len(cpi_diff))
+
+
+for i in range(len(cpi_diff)):
+    r_prev[i] = (cpi_diff[i+1]-cpi_diff[i])/cpi_diff[i]
+
+print(r_prev)
 
 def r_t(sigma,epsilon):
     return sigma*epsilon
 def sigma_t(r_prev,sigma_prev,alphas,betas,p,q):
-    #Need to be checked
+    r_prev = np.append(1,r_prev)
     a=0
     b=0
     for i in range(p):
-        a+=alphas[i+1]*r_prev[i]**2
+        a+=alphas[i]*r_prev[-i]**2
     for i in range(q):
-        b+=betas[i]*sigma_prev[i]^2
-    return np.sqrt(alphas[0] + a+b)
+        b+=betas[i]*sigma_prev[-i]**2
+    return np.sqrt(a+b)
 def likelihood(r,sigma,T):
     L=1
     for t in range(T):
         L=L*(1/(np.sqrt(2*np.pi)*sigma[t])*np.exp(-1/2*r[t]**2/sigma[t]**2))
     l=-np.log(L)
     return l
+
+
+#SUSAN ZONE
+def score_1(alphas,betas,r,sigma):
+    """
+    Computes the score vector of the log-likelihood of a GARCH(q,p)-model with respect to the vector
+    where vectors alphas and betas are concatenated.
+
+    Parameters:
+    alphas: A ((p+1)x1) vector.
+    betas: A (qx1) vector.
+    r: A (Nx1) vector.
+    sigma: A (Nx1) vector.
+
+    Returns: score, a ((p+q+1)x1) vector.
+    """
+    r_new = [r[i] for i in range(len(r)-1,-1,-1)]
+    sigma_new = [sigma[i] for i in range(len(sigma)-1,-1,-1)]
+    r_i = np.append(1, r_new)
+    P = np.concatenate(alphas, betas) #Combine alphas and betas into one parameter vector!
+    K = np.concatenate(r_i[:len(alphas)], sigma_new[:len(betas)]) #Combine r_i and sigma into one vector. 
+    b=1/(np.transpose(P)@K)
+    score = (len(r))/2 * (1/b) * np.transpose(K) -1/2 * sum(np.square(r))*(b)**(-2) * np.transpose(K)
+
+
+def Hessian_1(alphas,betas,r,sigma):
+    """
+    Computes the Hessian matrix of the log-likelihood of a GARCH(q,p) with respect to the vector
+    where vectors alphas and betas are concatenated.
+
+    Parameters:
+    alphas: A ((p+1)x1) vector.
+    betas: A (qx1) vector.
+    r: A (Nx1) vector.
+    sigma: A (Nx1) vector.
+    
+    Returns: hess, a ((p+1+q)x(p+1+q)) matrix.
+    """
+    r_new = [r[i] for i in range(len(r)-1,-1,-1)]
+    sigma_new = [sigma[i] for i in range(len(sigma)-1,-1,-1)]
+    r_i = np.append(1, r_new)
+    P = np.concatenate(alphas, betas) #Combine alphas and betas into one parameter vector!
+    K = np.concatenate(r_i[:len(alphas)], sigma_new[:len(betas)]) #Combine r_i and sigma into one vector. 
+    b=1/(np.transpose(P)@K)
+    hess = -(len(r))/2 * (1/b)**(-2) * np.transpose(K)@K + 1/4 * sum(np.square(r))*b**(-3) * np.transpose(K)@K
+    return hess
+
+def garch_fit(alphas_init,betas_init,tol,r,maxiter,p,q,sigma_init,N):
+    not_tol=True
+    i=0
+    sigma_prevs=[sigma_init]
+    r_prevs=[r[0]]
+    n_a=len(alphas_init)
+    n_b=len(betas_init)
+    params_old=[alphas_init,betas_init]
+    while not_tol and i<maxiter:
+        sigma=sigma_t(r_prevs,sigma_prevs,params_old[:n_a],params_old[n_a:],p,q)
+        #minimize log likelihood and get parameter estimates
+        result=minimize(likelihood,params_old,method="BFGS", jac = score_1, hess = Hessian_1)
+        new_params=result.x
+    
+
+    #Check if difference in Euclidian norm are smaller than tol 
+        if norm(params_old - new_params)<tol:
+            not_tol=False
+
+        i+=1
+        params_old=new_params
+    #If yes break loop, if not continue to iterate and smaller than maxiter
+
+
+
+
+
+
+
+
+
+#CAROLINE ZONE
+
 
 def score(alphas,betas,r_prevs,r_t,sigma_prevs,sigma_t,N):
     #Are supposed to be a sum over T in b, but that are taken care of by the while loop? 
@@ -87,58 +180,10 @@ def garch_fit(alphas_init, betas_init,tol,r,maxiter,p,q,sigma_init,N):
     #Update params
         params_new=params_old-np.linalg.inv(H)@s
     #Check if difference for all params alpha and beta are smaller than tol
-        if params_new<tol:
+        if norm(new_params-params_old)<tol:
             not_tol=False
 
         i+=1
         params_old=params_new
     #If yes break loop, if not continue to iterate and smaller than maxiter
 
-
-
-
-
-#SUSAN ZONE
-def score_1(alphas,betas,r,sigma):
-    """
-    Computes the score vector of the log-likelihood of a GARCH(q,p)-model with respect to the vector
-    where vectors alphas and betas are concatenated.
-
-    Parameters:
-    alphas: A ((p+1)x1) vector.
-    betas: A (qx1) vector.
-    r: A (Nx1) vector.
-    sigma: A (Nx1) vector.
-
-    Returns: score, a ((p+q+1)x1) vector.
-    """
-    r_new = [r[i] for i in range(len(r)-1,-1,-1)]
-    sigma_new = [sigma[i] for i in range(len(sigma)-1,-1,-1)]
-    r_i = np.append(1, r_new)
-    P = np.concatenate(alphas, betas) #Combine alphas and betas into one parameter vector!
-    K = np.concatenate(r_i[:len(alphas)], sigma_new[:len(betas)]) #Combine r_i and sigma into one vector. 
-    b=1/(np.transpose(P)@K)
-    score = (len(r))/2 * (1/b) * np.transpose(K) -1/2 * sum(np.square(r))*(b)**(-2) * np.transpose(K)
-
-
-def Hessian_1(alphas,betas,r,sigma):
-    """
-    Computes the Hessian matrix of the log-likelihood of a GARCH(q,p) with respect to the vector
-    where vectors alphas and betas are concatenated.
-
-    Parameters:
-    alphas: A ((p+1)x1) vector.
-    betas: A (qx1) vector.
-    r: A (Nx1) vector.
-    sigma: A (Nx1) vector.
-    
-    Returns: hess, a ((p+1+q)x(p+1+q)) matrix.
-    """
-    r_new = [r[i] for i in range(len(r)-1,-1,-1)]
-    sigma_new = [sigma[i] for i in range(len(sigma)-1,-1,-1)]
-    r_i = np.append(1, r_new)
-    P = np.concatenate(alphas, betas) #Combine alphas and betas into one parameter vector!
-    K = np.concatenate(r_i[:len(alphas)], sigma_new[:len(betas)]) #Combine r_i and sigma into one vector. 
-    b=1/(np.transpose(P)@K)
-    hess = -(len(r))/2 * (1/b)**(-2) * np.transpose(K)@K + 1/4 * sum(np.square(r))*b**(-3) * np.transpose(K)@K
-    return hess
