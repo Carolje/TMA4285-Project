@@ -12,6 +12,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from statsmodels.tsa.arima.model import ARIMA
 import arimax as model
+import statistics 
 
 folder = r"C:\Users\AGSAS2291\OneDrive - Framlent AS\Dokumenter\Tidsrekker\Prosjekt\TMA4285-Project"
 file = "Data1997-2022.csv"
