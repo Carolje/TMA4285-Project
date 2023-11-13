@@ -23,34 +23,45 @@ class ARMAX:
       self.beta = np.zeros(num_exo)
       pass
 
-    def kalman_log_likelihood(self, mu_0, sigma_0):
+    def kalman_log_likelihood(self, y, exo_data, mu_0, sigma_0, evo, obsv, var_state, var_obsv):
+        # Initial conditions
         x_t, P_t = mu_0, sigma_0
+        evo_matrix = evo
+        obsv_matrix = obsv
+        state_sigma2, obsv_sigma2 = var_state, var_obsv
 
-        x_pred_vec = np.zeros_like(foo)
-        P_pred_vec = np.zeros_like(foo)
+        x_pred_vec = np.zeros(len(y)-1)
+        P_pred_vec = np.zeros(len(y)-1)
+
         ll = 0
-        for i in range(something):
+        for t in range(len(y)):
             # prediction
             x_t_1 = evo_matrix @ x_t
             P_t_1 = evo_matrix @ P_t @ evo_matrix.T + state_sigma2
 
-            x_pred_vec[i] = x_t_1
-            P_pred_vec[i] = P_t_1
+            x_pred_vec[t] = x_t_1
+            P_pred_vec[t] = P_t_1
 
             #kalman gain
-            M = np.linalg.inv(obsv_matrix @ P_t_1 @ obsv_matrix + obsv_sigma2)
+            Sig = obsv_matrix @ P_t_1 @ obsv_matrix.T + obsv_sigma2
+            M = np.linalg.inv(Sig)
             K_t = P_t_1 @ obsv_matrix.T @ M
 
             #Filter
-            x_t = x_t_1 + K_t @ (y_t - obsv_matrix @ x_t_1)
+            innov = y[t] - obsv_matrix @ x_t_1
+            x_t = x_t_1 + K_t @ (innov)
             P_t = (1 - K_t @ obsv_matrix) @ P_t_1
-
+            ll += np.log(Sig) + innov.T @ M @ innov
+            # jac_ll +=
         #TODO : Append the x_t-s to a an array
 
         ll = np.sum(np.log(obsv_matrix @ P_t_1 @ obsv_matrix.T)) + np.sum()
 
+
+        return ll, jac_ll
+
     def fit_kalman(self):
-         opt.minimize(self.kalman_log_likelihood, method ='BFGS')
+         opt.minimize(self.kalman_log_likelihood[0], method ='BFGS', jac = self.kalman_log_likelihood[1])
    
     def fit(self):
         step_len = np.inf
