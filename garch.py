@@ -28,22 +28,18 @@ def sigma_t(r_prev,sigma_prev,alphas,betas,p,q):
 def sigma_t_l(r_prev,sigma_prev,params,p,q):
     
     r_prev = np.append(r_prev,1)
-    print(r_prev)
-    print(sigma_prev)
-    print(params)
+    print("r_prev",r_prev)
     a=0
     b=0
     for i in range(p):
         a+=params[i]*r_prev[-i]**2
+        print("a",a)
     for i in range(q):
         b+=params[p+i]*sigma_prev[-i]**2
+        print("b",b)
+    print(a+b)
     return np.sqrt(a+b)
-def likelihood(r,sigma,T):
-    L=1
-    for t in range(T):
-        L=L*(1/(np.sqrt(2*np.pi)*sigma[t])*np.exp(-1/2*r[t]**2/sigma[t]**2))
-    l=-np.log(L)
-    return l
+
 
 def logLikelihood(P,*args):
     r,sigma,t,n_a,n_b=args
@@ -129,27 +125,42 @@ def garch_fit(alphas_init,betas_init,tol,r,maxiter,p,q,sigma_init,N):
     params_old=np.concatenate((alphas_init,betas_init))
     while not_tol and i<maxiter:
         sigma=sigma_t_l(r_prevs,sigma_prevs,params_old,p,q)
+        print(sigma)
         #minimize log likelihood and get parameter estimates
-        if(len(params_old)>(len(r_prevs)+len(sigma_prevs))):
+        if((len(params_old)-1)>(len(r_prevs)+len(sigma_prevs))):
             m=len(params_old)-(len(r_prevs)+len(sigma_prevs))
             m=int(m/2)
+
             b=int((len(params_old)-1)/2)
             b=int(b-m)
             params_old_s=np.concatenate((params_old[0:b+1],params_old[b+m+1:-m]))
-        result=minimize(logLikelihood,params_old_s,method="BFGS", jac = score_1,args=(r_prevs,sigma_prevs,i+1,n_a,n_b))
+            # print(len(params_old_s))
+            # print(params_old_s)
+            result=minimize(logLikelihood,params_old_s,method="BFGS", jac = score_1,args=(r_prevs,sigma_prevs,i+1,n_a,n_b))
+        else:
+            result=minimize(logLikelihood,params_old,method="BFGS", jac = score_1,args=(r_prevs,sigma_prevs,i+1,n_a,n_b))
         #, hess = Hessian_1)
         new_params=result.x
     
 
     #Check if difference in Euclidian norm are smaller than tol 
-        if(len(params_old)>len(new_params)):
-            new_params=[]
-            #Continue here to fix this problem
-        if np.linalg.norm(params_old - new_params)<tol:
-            not_tol=False
+        if((len(params_old)-1)>len(new_params)):
+            m=len(params_old)-(len(new_params))
+            m=int(m/2)
+            b=int((len(params_old)-1)/2)
+            b=int(b-m)
+            params_old_s=np.concatenate((params_old[0:b+1],params_old[b+m+1:-m]))
+            if np.linalg.norm(params_old_s - new_params)<tol:
+                not_tol=False
+            params_old[0:b+1]=new_params[0:b+1]
+            params_old[b+m+1:-m]=new_params[-m:]
+        else:
+            if np.linalg.norm(params_old - new_params)<tol:
+                not_tol=False
+            params_old=new_params
+
 
         i+=1
-        params_old=new_params
         r_prevs=np.append(r_prevs,r[i])
         sigma_prevs=np.append(sigma_prevs,sigma)
     #If yes break loop, if not continue to iterate and smaller than maxiter
@@ -208,6 +219,13 @@ def Hessian(alphas,betas,r_prevs,r_t,sigma_prevs,sigma_t,N):
         for j in range(1,n_a):
             vec[i,j]=-N/2*b**2*sigma_prevs[i-1]**2*r_prevs[j-1]**2-1/2*r_t**2*sigma_prevs[i-1]**2*r_prevs[j-1]**2*b**2
     return vec
+
+def likelihood(r,sigma,T):
+    L=1
+    for t in range(T):
+        L=L*(1/(np.sqrt(2*np.pi)*sigma[t])*np.exp(-1/2*r[t]**2/sigma[t]**2))
+    l=-np.log(L)
+    return l
 #What is N?
 
 def garch_fit(alphas_init, betas_init,tol,r,maxiter,p,q,sigma_init,N):
