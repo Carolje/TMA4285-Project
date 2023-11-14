@@ -32,29 +32,30 @@ class ARMAX:
         np.fill_diagonal(P_0, s.variance(self.y))
         # F 2x2
         evo_matrix = np.zeros((self.p,self.p))        
-        evo_matrix[:,0] = evo
-        evo_matrix[:-1,1:] = np.diag(np.ones(self.p-1))
+        evo_matrix[0,:] = evo
+        evo_matrix[1:,:-1] = np.diag(np.ones(self.p-1))
         # A 1x2
         obsv_matrix = np.zeros(self.p)      
         obsv_matrix[0] = 1
         # v_t - white noise 1x1
         sigma2 = var            
         # H 2x3
-        exog_matrix = np.zeros((self.p,3))
+        exog_matrix = np.zeros((self.p,3+1))
         exog_matrix[0] = beta
         # G 2x1
-        noise_matrix = evo**2    
+        noise_matrix = np.array([np.sqrt(sigma2),0])    
         # Q 2x2
-        noise_state = sigma2*np.diag(noise_matrix)  
+        noise_state = np.zeros((2,2))
+        noise_state[0,0] = sigma2
 
-        x_tt = np.zeros((len(self.y)-1,2))
-        x_tt1 = np.zeros((len(self.y)-1,2))
-        P_tt = np.zeros((len(self.y)-1,4))
-        P_tt1 = np.zeros((len(self.y)-1,4))
+        x_tt = np.zeros((len(self.y),2))
+        x_tt1 = np.zeros((len(self.y),2))
+        P_tt = np.zeros((len(self.y),4))
+        P_tt1 = np.zeros((len(self.y),4))
         x_tt[0] = x_0
         P_tt[0] = P_0.reshape((1,4))
-
-        for t in range(1,len(self.y)):
+        
+        for t in range(len(x_tt)):
             # Kalman Filter
             #prediction
             x_tt1[t] = evo_matrix @ x_tt[t-1] + exog_matrix @ self.exog[t]
@@ -64,11 +65,12 @@ class ARMAX:
             x_tt[t] = x_tt1[t] + K_t * (self.y[t] - obsv_matrix @ x_tt1[t])
             P_tt[t] = ((np.identity(2) - K_t @ obsv_matrix) @ P_tt1[t].reshape((2,2))).reshape((1,4))
             
-            # Newton-Raphson
-            
+        # Likelihood and minimize
+        
+        opt.minimize(likelihood, method ='BFGS')
             
 
-        return 0
+        return x_tt,P_tt
 
     def fit_kalman(self):
          opt.minimize(self.kalman_log_likelihood[0], method ='BFGS', jac = self.kalman_log_likelihood[1])
