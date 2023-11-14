@@ -3,7 +3,7 @@ import pandas as pd
 from scipy.optimize import minimize
 from numpy.linalg import norm
 import dataTransformations as dF
-import arch
+#import arch
 import numpy.random as nprand
 
 #Get data and difference data
@@ -79,10 +79,11 @@ def logLikelihood(P,*args):
     r_i=np.array(r_i)
     sigma_new=np.array(sigma_new)
     K = np.concatenate((r_i[:n_a],sigma_new[:n_b],covs)) #Combine r_i and sigma into one vector. 
-    L=1
+    l=0
     for ti in range(t):
-        L=L*(1/(np.sqrt(2*np.pi*np.transpose(P)@K))*np.exp(-1/2*r[ti]**2/(np.transpose(P)@K)**2))
-    l=-np.log(L)
+        l += - np.log(np.sqrt(2*np.pi)) - np.log(np.transpose(P)@K) -1/2*r[ti]**2/((np.transpose(P)@K))**2
+        #L=L*(1/(np.sqrt(2*np.pi*np.transpose(P)@K))*np.exp(-1/2*r[ti]**2/(np.transpose(P)@K)**2))
+    #l=-np.log(L)
     return l
 
 def score_1(P,*args):
