@@ -7,10 +7,9 @@ import statistics as s
 
 
 class ARMAX:
-    def __init__(self, p, d, q, num_exo, y, exo_data,alpha_phi=0.0004, alpha_beta=0.4*10**(-12), stop_len=10**(-6)):
+    def __init__(self, p, q, num_exo, y, exo_data,alpha_phi=0.0004, alpha_beta=0.4*10**(-12), stop_len=10**(-6)):
       # overall
       self.p = p
-      self.d = d
       self.q = q
       self.y = np.array(y)
       self.exog = np.array(exo_data)
@@ -26,7 +25,10 @@ class ARMAX:
       self.beta = np.zeros(num_exo)
       pass
 
-    def kalman_log_likelihood(self, evo, var, beta):
+    def kalman_log_likelihood(self, params):
+
+        # params = [phi1, phi2, sigma, beta0, beta1, beta2, beta3]
+        evo, var, beta = params[0:2], params[2], params[3:]
         # Initial conditions
         x_0, P_0 = np.ones(self.p)*s.mean(self.y), np.zeros((self.p,self.p))
         np.fill_diagonal(P_0, s.variance(self.y))
@@ -39,9 +41,8 @@ class ARMAX:
         obsv_matrix[0] = 1
         # v_t - white noise 1x1
         sigma2 = var            
-        # H 2x3
-        exog_matrix = np.zeros((self.p,3+1))
-        exog_matrix[0] = beta
+        # H 1x4
+        exog_matrix = beta
         # G 2x1
         noise_matrix = np.array([np.sqrt(sigma2),0])    
         # Q 2x2
@@ -58,22 +59,27 @@ class ARMAX:
         for t in range(len(x_tt)):
             # Kalman Filter
             #prediction
-            x_tt1[t] = evo_matrix @ x_tt[t-1] + exog_matrix @ self.exog[t]
+            x_tt1[t] = evo_matrix @ x_tt[t-1]
             P_tt1[t] = (evo_matrix @ P_tt[t-1].reshape((2,2)) @ evo_matrix.T + noise_state).reshape((1,4))
             #filter
             K_t = P_tt1[t].reshape((2,2)) @ obsv_matrix.T * 1/(obsv_matrix @ P_tt1[t].reshape((2,2)) @ obsv_matrix.T)
-            x_tt[t] = x_tt1[t] + K_t * (self.y[t] - obsv_matrix @ x_tt1[t])
+            x_tt[t] = x_tt1[t] + K_t * (self.y[t] - obsv_matrix @ x_tt1[t] - exog_matrix @ self.exog[t])
             P_tt[t] = ((np.identity(2) - K_t @ obsv_matrix) @ P_tt1[t].reshape((2,2))).reshape((1,4))
             
         # Likelihood and minimize
-        
-        opt.minimize(likelihood, method ='BFGS')
-            
+        neg_ll = 0
+        for t in range(len(x_tt)):
+            Sig_t = obsv_matrix @ P_tt1[t].reshape((2,2)) @ obsv_matrix.T
+            res_t = self.y[t] - obsv_matrix @ x_tt1[t] - exog_matrix @ self.exog[t] 
+            neg_ll += np.log(Sig_t) + res_t**2/ Sig_t
 
-        return x_tt,P_tt
+        print(neg_ll)
+        return neg_ll
 
-    def fit_kalman(self):
-         opt.minimize(self.kalman_log_likelihood[0], method ='BFGS', jac = self.kalman_log_likelihood[1])
+    def fit_kalman(self, evo, var, beta):
+         init_params = np.concatenate((np.append(evo, var), beta), axis = 0)       
+         res = opt.minimize(self.kalman_log_likelihood, init_params, method ='BFGS')
+         return res
    
     def fit(self):
         step_len = np.inf
@@ -119,7 +125,7 @@ class ARMAX:
         print('{:^80}'.format("Results"))
         print("="*80)
         print('{:<25}'.format("Dep. Variable:"),'{:>25}'.format(self.y.name))
-        print('{:<25}'.format("Model:"),'{:>13}'.format("ARIMAX("),self.p,",",self.d,",",self.q,")")
+        print('{:<25}'.format("Model:"),'{:>13}'.format("ARIMAX("),self.p,",",self.q,")")
         print('{:<25}'.format("No. Observations:"),'{:>25}'.format(len(self.y)))
         print('{:<25}'.format("AIC"),'{:>25}'.format("AICvalue"))
         print('{:<25}'.format("BIC"),'{:>25}'.format("BICvalue"))
