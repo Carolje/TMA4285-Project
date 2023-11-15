@@ -11,3 +11,7 @@ def predict_garch(alphas, betas, gammas, r_prev, sig_prev, params_pred, N, npred
             preds[j] = nprand.normal(0, alphas[0] + np.transpose(alphas[1:])@yeet_r[:p] + np.transpose(betas)@yeet_sig[:q] + np.transpose(gammas)@params_pred[-1])
         r_prev = np.append(r_prev,np.mean(preds))
     return r_prev[-npred:]
+
+
+def sample_variance(vec):
+    return np.sum((vec-np.mean(vec))**2)/(len(vec)-1)
