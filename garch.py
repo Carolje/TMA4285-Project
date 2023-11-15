@@ -73,14 +73,18 @@ def logLikelihood(P,*args):
 
     """
     r,sigma,covs,t,n_a,n_b=args
-    r_new = [r[i] for i in range(len(r)-1,-1,-1)]
-    sigma_new = [sigma[i] for i in range(len(sigma)-1,-1,-1)]
+    r_new = np.flip(r)
+    sigma_new = np.flip(sigma)
+    #r_new = [r[i] for i in range(len(r)-1,-1,-1)]
+    #sigma_new = [sigma[i] for i in range(len(sigma)-1,-1,-1)]
     r_i = np.append(r_new,1)
     r_i=np.array(r_i)
     sigma_new=np.array(sigma_new)
-    K = np.concatenate((r_i[:n_a],sigma_new[:n_b],covs)) #Combine r_i and sigma into one vector. 
+    #K = np.concatenate((r_i[:n_a],sigma_new[:n_b],covs)) #Combine r_i and sigma into one vector.
+    iter_start = max(n_a, n_b)
     l=0
-    for ti in range(t):
+    for ti in range(iter_start+1, t):
+        K = np.concatenate((np.concatenate((r_i[0:1], r_i[ti:ti+n_a])), sigma_new[ti:ti+n_a], covs))
         l += - np.log(np.sqrt(2*np.pi)) - np.log(np.transpose(P)@K) -1/2*r[ti]**2/((np.transpose(P)@K))**2
         #L=L*(1/(np.sqrt(2*np.pi*np.transpose(P)@K))*np.exp(-1/2*r[ti]**2/(np.transpose(P)@K)**2))
     #l=-np.log(L)
@@ -100,12 +104,21 @@ def score_1(P,*args):
     Returns: score, a ((p+q+1)x1) vector.
     """
     r,sigma,covs,t,n_a,n_b=args
-    r_new = [r[i] for i in range(len(r)-1,-1,-1)]
-    sigma_new = [sigma[i] for i in range(len(sigma)-1,-1,-1)]
+    r_new = np.flip(r)
+    sigma_new = np.flip(sigma)
+    #r_new = [r[i] for i in range(len(r)-1,-1,-1)]
+    #sigma_new = [sigma[i] for i in range(len(sigma)-1,-1,-1)]
     r_i = np.append(r_new,1)
-    K = np.concatenate((r_i[:n_a], sigma_new[:n_b],covs)) #Combine r_i and sigma into one vector. 
-    b=1/(np.transpose(P)@K)
-    score = (len(r))/2 * (1/b) * np.transpose(K) -1/2 * sum(np.square(r))*(b)**(-2) * np.transpose(K)
+    #New stuff
+    iter_start = max(n_a, n_b)
+    score = 0
+    for ti in range(iter_start+1, t):
+        K = np.concatenate((np.concatenate((r_i[0:1], r_i[ti:ti+n_a])), sigma_new[ti:ti+n_a], covs))
+        b = b=1/(np.transpose(P)@K)
+        score += (1/b) * np.transpose(K) -1/2 * sum(np.square(r))*(b)**(-2) * np.transpose(K)
+    #K = np.concatenate((r_i[:n_a], sigma_new[:n_b],covs)) #Combine r_i and sigma into one vector. 
+    #b=1/(np.transpose(P)@K)
+    #score = (len(r))/2 * (1/b) * np.transpose(K) -1/2 * sum(np.square(r))*(b)**(-2) * np.transpose(K)
     return score
 
 def con_pos(x):
@@ -153,6 +166,8 @@ def garch_fit(alphas_init,betas_init,tol,r,covs,maxiter,p,q,m,sigma_init,gammas_
             b=int((len(params_old)-1)/2)
             b=int(b-m)
             params_old_s=np.concatenate((params_old[0:b+1],params_old[b+m+1:-(m+3)],params_old[-3:]))
+            print(b+1)
+            print(params_old_s)
             result=minimize(logLikelihood,params_old_s,method="SLSQP", jac = score_1,args=(r_prevs,sigma_prevs,c,i+1,n_a,n_b),constraints=cons)
         else:
             result=minimize(logLikelihood,params_old,method="SLSQP", jac = score_1,args=(r_prevs,sigma_prevs,c,i+1,n_a,n_b),constraints=cons)
