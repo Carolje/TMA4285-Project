@@ -71,6 +71,8 @@ class ARMAX:
         for t in range(len(x_tt)):
             Sig_t = obsv_matrix @ P_tt1[t].reshape((2,2)) @ obsv_matrix.T
             res_t = self.y[t] - obsv_matrix @ x_tt1[t] - exog_matrix @ self.exog[t] 
+            # if Sig_t == np.nan:
+            #     print('skraaa')
             neg_ll += np.log(Sig_t) + res_t**2/ Sig_t
 
         print(neg_ll)
