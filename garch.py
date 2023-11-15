@@ -3,7 +3,7 @@ import pandas as pd
 from scipy.optimize import minimize
 from numpy.linalg import norm
 import dataTransformations as dF
-#import arch
+import arch
 import numpy.random as nprand
 
 #Get data and difference data
@@ -43,13 +43,16 @@ def sigma_t_l(r_prev,sigma_prev,params,p,q,m,covs):
     a=0
     b=0
     g=0
+    g=params[p+q+1:]@covs
+    if p>len(r_prev):
+        p=len(r_prev)
     for i in range(p):
         a+=params[i]*r_prev[-i]**2
+    if q>len(sigma_prev):
+        q=len(sigma_prev)
     for i in range(q):
         b+=params[p+i]*sigma_prev[-i]**2
-    # for i in range(m):
-    #     g+=params[p+q+i]*covs[i]
-    g=params[p+q+i:]@covs
+    
     sum=a+b+g
     return np.sqrt(sum)
 
@@ -73,22 +76,22 @@ def logLikelihood(P,*args):
 
     """
     r,sigma,covs,t,n_a,n_b=args
-    r_new = np.flip(r)
     sigma_new = np.flip(sigma)
     #r_new = [r[i] for i in range(len(r)-1,-1,-1)]
     #sigma_new = [sigma[i] for i in range(len(sigma)-1,-1,-1)]
-    r_i = np.append(r_new,1)
+    r_i = np.append(r,1)
     r_i=np.array(r_i)
-    sigma_new=np.array(sigma_new)
+    r_new=np.flip(r_i)
     #K = np.concatenate((r_i[:n_a],sigma_new[:n_b],covs)) #Combine r_i and sigma into one vector.
     iter_start = max(n_a, n_b)
     l=0
-    for ti in range(iter_start+1, t):
-        K = np.concatenate((np.concatenate((r_i[0:1], r_i[ti:ti+n_a])), sigma_new[ti:ti+n_a], covs))
-        l += - np.log(np.sqrt(2*np.pi)) - np.log(np.transpose(P)@K) -1/2*r[ti]**2/((np.transpose(P)@K))**2
+    for ti in range(iter_start+1, t+1):
+        r_temp=np.concatenate((r_new[0:1],r_new[-ti:-(ti-n_a)]))
+        K = np.concatenate((r_temp, sigma_new[-ti:-(ti-n_b)], covs[ti,:]))
+        l += - np.log(np.sqrt(2*np.pi)) - np.log(np.transpose(P)@K) -1/2*r_new[ti]**2/((np.transpose(P)@K))**2
         #L=L*(1/(np.sqrt(2*np.pi*np.transpose(P)@K))*np.exp(-1/2*r[ti]**2/(np.transpose(P)@K)**2))
     #l=-np.log(L)
-    return l
+    return float(l)
 
 def score_1(P,*args):
     """
@@ -112,8 +115,8 @@ def score_1(P,*args):
     #New stuff
     iter_start = max(n_a, n_b)
     score = 0
-    for ti in range(iter_start+1, t):
-        K = np.concatenate((np.concatenate((r_i[0:1], r_i[ti:ti+n_a])), sigma_new[ti:ti+n_a], covs))
+    for ti in range(iter_start+1, t+1):
+        K = np.concatenate((np.concatenate((r_i[0:1], r_i[-ti:-(ti-n_a)])), sigma_new[-ti:-(ti-n_b)], covs[ti,:]))
         b = b=1/(np.transpose(P)@K)
         score += (1/b) * np.transpose(K) -1/2 * sum(np.square(r))*(b)**(-2) * np.transpose(K)
     #K = np.concatenate((r_i[:n_a], sigma_new[:n_b],covs)) #Combine r_i and sigma into one vector. 
@@ -148,47 +151,28 @@ def garch_fit(alphas_init,betas_init,tol,r,covs,maxiter,p,q,m,sigma_init,gammas_
     Returns: The estimated parameters, number of iterations, the returns used and the estimated sigmas.
     """
     not_tol=True
-    i=0
+    
     sigma_prevs=np.array([sigma_init])
-    r_prevs=np.array([r[0]])
+    r_prevs=r[0:p+2]
+    params_old=np.concatenate((alphas_init,betas_init,gammas_init))
+    for i in range(len(r_prevs)-1):
+        sigma=sigma_t_l(r_prevs[:i+1],sigma_prevs,params_old,p,q,m,covs[i,:])
+        sigma_prevs=np.append(sigma_prevs,sigma)
     n_a=len(alphas_init)
     n_b=len(betas_init)
-    params_old=np.concatenate((alphas_init,betas_init,gammas_init))
-
     cons={"type":"eq","fun":con_pos}
+    i=max(p,q)+1
     while not_tol and i<maxiter:
-        c=covs[i,:]
-        sigma=sigma_t_l(r_prevs,sigma_prevs,params_old,p,q,m,c)
-        #minimize log likelihood and get parameter estimates
-        if((len(params_old)-4)>(len(r_prevs)+len(sigma_prevs))):
-            m=len(params_old)-3-(len(r_prevs)+len(sigma_prevs))
-            m=int(m/2)
-            b=int((len(params_old)-1)/2)
-            b=int(b-m)
-            params_old_s=np.concatenate((params_old[0:b+1],params_old[b+m+1:-(m+3)],params_old[-3:]))
-            print(b+1)
-            print(params_old_s)
-            result=minimize(logLikelihood,params_old_s,method="SLSQP", jac = score_1,args=(r_prevs,sigma_prevs,c,i+1,n_a,n_b),constraints=cons)
-        else:
-            result=minimize(logLikelihood,params_old,method="SLSQP", jac = score_1,args=(r_prevs,sigma_prevs,c,i+1,n_a,n_b),constraints=cons)
+        print(i)
+        c=covs[i+3,:]
+        sigma=sigma_t_l(r_prevs,sigma_prevs,params_old,p,q,m,c)        
+        result=minimize(logLikelihood,params_old,method="SLSQP", jac = score_1,args=(r_prevs,sigma_prevs,covs[:i+3,:],i,n_a-1,n_b),constraints=cons)
+
         new_params=result.x
     
-
-    #Check if difference in Euclidian norm are smaller than tol 
-        if((len(params_old)-4)>(len(r_prevs)+len(sigma_prevs))):
-            m=len(params_old)-3-(len(r_prevs)+len(sigma_prevs))
-            m=int(m/2)
-            b=int((len(params_old)-1)/2)
-            b=int(b-m)
-            params_old_s=np.concatenate((params_old[0:b+1],params_old[b+m+1:-(m+3)],params_old[-3:]))
-            if np.linalg.norm(params_old_s - new_params)<tol:
-                not_tol=False
-            params_old[0:b+1]=new_params[0:b+1]
-            params_old[b+m+1:-m]=new_params[-m:]
-        else:
-            if np.linalg.norm(params_old - new_params)<tol:
-                not_tol=False
-            params_old=new_params
+        if np.linalg.norm(params_old - new_params)<tol:
+            not_tol=False
+        params_old=new_params
 
 
         i+=1
@@ -196,17 +180,20 @@ def garch_fit(alphas_init,betas_init,tol,r,covs,maxiter,p,q,m,sigma_init,gammas_
         sigma_prevs=np.append(sigma_prevs,sigma)
     return params_old,i,sigma_prevs,r_prevs
 
-p=2
+p=1
 q=2
-params,i,sigma_prevs,r_prevs=garch_fit(alphas_init=np.array([0.005,0.005,0.005]),betas_init=np.array([0.005,0.005]),tol=1e-7,r=r,covs=covs,maxiter=100,p=2,q=2,m=3,sigma_init=0.05,gammas_init=np.array([0.01,0.01,0.01]),N=len(r))
+a=np.array([0.05,0.02])
+b=np.array([0.01,0.02])
+g=np.array([0.1,0.2,0.3])
+params,i,sigma_prevs,r_prevs=garch_fit(alphas_init=a,betas_init=b,tol=1e-7,r=r,covs=covs,maxiter=100,p=p,q=q,m=3,sigma_init=0.05,gammas_init=g,N=len(r))
 print("params=",params)
 print("i",i)
 print("r_prevs",r_prevs)
 print("sigma_prevs",sigma_prevs)
 
-# model=arch.arch_model(cpi_diff,x=covs,mean="ARX",vol="GARCH",p=3,q=2)
-# results=model.fit()
-# print(results)
+model=arch.arch_model(cpi_diff,x=covs,mean="ARX",vol="GARCH",p=3,q=2)
+results=model.fit()
+print(results)
 
 def predict_garch(params, r_prev, sig_prev, covs_prev, M, npred, p, q):
     r_pred=np.copy(r_prev)
@@ -222,4 +209,30 @@ def predict_garch(params, r_prev, sig_prev, covs_prev, M, npred, p, q):
     return r_pred
 
 preds=predict_garch(params, r_prevs, sigma_prevs, covs, 100, 5, p, q)
-print(preds)
+#print(preds)
+
+
+
+        #minimize log likelihood and get parameter estimates
+        # if((len(params_old)-4)>(len(r_prevs)+len(sigma_prevs))):
+        #     m=len(params_old)-3-(len(r_prevs)+len(sigma_prevs))
+        #     m=int(m/2)
+        #     b=int((len(params_old)-1)/2)
+        #     b=int(b-m)
+        #     params_old_s=np.concatenate((params_old[0:b+1],params_old[b+m+1:-(m+3)],params_old[-3:]))
+        #     result=minimize(logLikelihood,params_old_s,method="SLSQP", jac = score_1,args=(r_prevs,sigma_prevs,c,i+1,i,i),constraints=cons)
+        # else:
+        #     result=minimize(logLikelihood,params_old,method="SLSQP", jac = score_1,args=(r_prevs,sigma_prevs,c,i+1,n_a,n_b),constraints=cons)
+
+            #Check if difference in Euclidian norm are smaller than tol 
+        # if((len(params_old)-4)>(len(r_prevs)+len(sigma_prevs))):
+        #     m=len(params_old)-3-(len(r_prevs)+len(sigma_prevs))
+        #     m=int(m/2)
+        #     b=int((len(params_old)-1)/2)
+        #     b=int(b-m)
+        #     params_old_s=np.concatenate((params_old[0:b+1],params_old[b+m+1:-(m+3)],params_old[-3:]))
+        #     if np.linalg.norm(params_old_s - new_params)<tol:
+        #         not_tol=False
+        #     params_old[0:b+1]=new_params[0:b+1]
+        #     params_old[b+m+1:-m]=new_params[-m:]
+        # else:
