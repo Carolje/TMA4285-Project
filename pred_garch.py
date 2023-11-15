@@ -15,3 +15,7 @@ def predict_garch(alphas, betas, gammas, r_prev, sig_prev, params_pred, N, npred
 
 def sample_variance(vec):
     return np.sum((vec-np.mean(vec))**2)/(len(vec)-1)
+
+#p-values, plot code, test error. 
+
+#Test error. 
