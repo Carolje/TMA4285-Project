@@ -3,17 +3,19 @@ import numpy as np
 import numpy.linalg as la
 from statsmodels.tsa.arima.model import ARIMA
 import scipy.optimize as opt
+import statistics as s
 
 
 class ARMAX:
-    def __init__(self, p, d, q, num_exo, data, exo_data,alpha_phi=0.0004, alpha_beta=0.4*10**(-12), stop_len=10**(-6)):
+    def __init__(self, p, q, num_exo, y, exo_data,alpha_phi=0.0004, alpha_beta=0.4*10**(-12), stop_len=10**(-6)):
+      # overall
+      self.p = p
+      self.q = q
+      self.y = np.array(y)
+      self.exog = np.array(exo_data)
+      # fit()
       # TODO: Initialize phi parameters
       self.phi = np.zeros(p)
-      self.p = p
-      self.d = d
-      self.q = q
-      self.data = data
-      self.exog = exo_data
       self.alpha_phi = alpha_phi
       self.alpha_beta = alpha_beta
       self.stop_len = stop_len
@@ -23,45 +25,61 @@ class ARMAX:
       self.beta = np.zeros(num_exo)
       pass
 
-    def kalman_log_likelihood(self, y, exo_data, mu_0, sigma_0, evo, obsv, var_state, var_obsv):
+    def kalman_log_likelihood(self, params):
+
+        # params = [phi1, phi2, sigma, beta0, beta1, beta2, beta3]
+        evo, var, beta = params[0:2], params[2], params[3:]
         # Initial conditions
-        x_t, P_t = mu_0, sigma_0
-        evo_matrix = evo
-        obsv_matrix = obsv
-        state_sigma2, obsv_sigma2 = var_state, var_obsv
+        x_0, P_0 = np.ones(self.p)*s.mean(self.y), np.zeros((self.p,self.p))
+        np.fill_diagonal(P_0, s.variance(self.y))
+        # F 2x2
+        evo_matrix = np.zeros((self.p,self.p))        
+        evo_matrix[0,:] = evo
+        evo_matrix[1:,:-1] = np.diag(np.ones(self.p-1))
+        # A 1x2
+        obsv_matrix = np.zeros(self.p)      
+        obsv_matrix[0] = 1
+        # v_t - white noise 1x1
+        sigma2 = var            
+        # H 1x4
+        exog_matrix = beta
+        # G 2x1
+        noise_matrix = np.array([np.sqrt(sigma2),0])    
+        # Q 2x2
+        noise_state = np.zeros((2,2))
+        noise_state[0,0] = sigma2
 
-        x_pred_vec = np.zeros(len(y)-1)
-        P_pred_vec = np.zeros(len(y)-1)
+        x_tt = np.zeros((len(self.y),2))
+        x_tt1 = np.zeros((len(self.y),2))
+        P_tt = np.zeros((len(self.y),4))
+        P_tt1 = np.zeros((len(self.y),4))
+        x_tt[0] = x_0
+        P_tt[0] = P_0.reshape((1,4))
+        
+        for t in range(len(x_tt)):
+            # Kalman Filter
+            #prediction
+            x_tt1[t] = evo_matrix @ x_tt[t-1]
+            P_tt1[t] = (evo_matrix @ P_tt[t-1].reshape((2,2)) @ evo_matrix.T + noise_state).reshape((1,4))
+            #filter
+            K_t = P_tt1[t].reshape((2,2)) @ obsv_matrix.T * 1/(obsv_matrix @ P_tt1[t].reshape((2,2)) @ obsv_matrix.T)
+            x_tt[t] = x_tt1[t] + K_t * (self.y[t] - obsv_matrix @ x_tt1[t] - exog_matrix @ self.exog[t])
+            P_tt[t] = ((np.identity(2) - K_t @ obsv_matrix) @ P_tt1[t].reshape((2,2))).reshape((1,4))
+            
+        # Likelihood and minimize
+        neg_ll = 0
+        for t in range(len(x_tt)):
+            Sig_t = obsv_matrix @ P_tt1[t].reshape((2,2)) @ obsv_matrix.T
+            res_t = self.y[t] - obsv_matrix @ x_tt1[t] - exog_matrix @ self.exog[t] 
+            neg_ll += np.log(Sig_t) + res_t**2/ Sig_t
 
-        ll = 0
-        for t in range(len(y)):
-            # prediction
-            x_t_1 = evo_matrix @ x_t
-            P_t_1 = evo_matrix @ P_t @ evo_matrix.T + state_sigma2
+        print(neg_ll)
+        return neg_ll
 
-            x_pred_vec[t] = x_t_1
-            P_pred_vec[t] = P_t_1
-
-            #kalman gain
-            Sig = obsv_matrix @ P_t_1 @ obsv_matrix.T + obsv_sigma2
-            M = np.linalg.inv(Sig)
-            K_t = P_t_1 @ obsv_matrix.T @ M
-
-            #Filter
-            innov = y[t] - obsv_matrix @ x_t_1
-            x_t = x_t_1 + K_t @ (innov)
-            P_t = (1 - K_t @ obsv_matrix) @ P_t_1
-            ll += np.log(Sig) + innov.T @ M @ innov
-            # jac_ll +=
-        #TODO : Append the x_t-s to a an array
-
-        ll = np.sum(np.log(obsv_matrix @ P_t_1 @ obsv_matrix.T)) + np.sum()
-
-
-        return ll, jac_ll
-
-    def fit_kalman(self):
-         opt.minimize(self.kalman_log_likelihood[0], method ='BFGS', jac = self.kalman_log_likelihood[1])
+    def fit_kalman(self, evo, var, beta):
+         init_params = np.concatenate((np.append(evo, var), beta), axis = 0)       
+         res = opt.minimize(self.kalman_log_likelihood, init_params, method ='BFGS')
+         return res
    
     def fit(self):
         step_len = np.inf
@@ -72,10 +90,10 @@ class ARMAX:
            # AR
            if self.p != 0:
                # Calculate the residuals
-               res = self.predict() - self.data[self.p-1:]
+               res = self.predict() - self.y[self.p-1:]
                 
                # Update the variables along the gradient
-               phi_step = np.dot(res, self.data[self.p-1:])
+               phi_step = np.dot(res, self.y[self.p-1:])
                beta_step = np.dot(res, self.exog[self.p-1:])
                # calculate length of total step
                step_len = self.alpha_phi*la.norm(phi_step) + self.alpha_beta*la.norm(beta_step)
@@ -92,7 +110,7 @@ class ARMAX:
         """
         Makes a prediction at times t
         """
-        ar_term = np.convolve(self.data, self.phi, 'valid')
+        ar_term = np.convolve(self.y, self.phi, 'valid')
         exog_term = np.dot(self.exog[self.p-1:], self.beta)
         x_t = ar_term + exog_term 
         # These are predictions not containg the first p values
@@ -106,9 +124,9 @@ class ARMAX:
         """
         print('{:^80}'.format("Results"))
         print("="*80)
-        print('{:<25}'.format("Dep. Variable:"),'{:>25}'.format(self.data.name))
-        print('{:<25}'.format("Model:"),'{:>13}'.format("ARIMAX("),self.p,",",self.d,",",self.q,")")
-        print('{:<25}'.format("No. Observations:"),'{:>25}'.format(len(self.data)))
+        print('{:<25}'.format("Dep. Variable:"),'{:>25}'.format(self.y.name))
+        print('{:<25}'.format("Model:"),'{:>13}'.format("ARIMAX("),self.p,",",self.q,")")
+        print('{:<25}'.format("No. Observations:"),'{:>25}'.format(len(self.y)))
         print('{:<25}'.format("AIC"),'{:>25}'.format("AICvalue"))
         print('{:<25}'.format("BIC"),'{:>25}'.format("BICvalue"))
         print('{:<25}'.format("Log Likelihood"),'{:>25}'.format("Logvalue"))
@@ -153,7 +171,7 @@ class ARMAX:
         The solution ARIMA() from python library gives
 
         """
-        model1 = ARIMA(self.data,exog=self.exog,order=(self.p,self.d,self.q))
+        model1 = ARIMA(self.y,exog=self.exog,order=(self.p,self.d,self.q))
         result = model1.fit()
         print(result.summary())
         
