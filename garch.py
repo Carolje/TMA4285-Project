@@ -166,7 +166,7 @@ def garch_fit(alphas_init,betas_init,tol,r,covs,maxiter,p,q,m,sigma_init,gammas_
         print(i)
         c=covs[i+3,:]
         sigma=sigma_t_l(r_prevs,sigma_prevs,params_old,p,q,m,c)        
-        result=minimize(logLikelihood,params_old,method="SLSQP", jac = score_1,args=(r_prevs,sigma_prevs,covs[:i+3,:],i,n_a-1,n_b),constraints=cons)
+        result=minimize(logLikelihood,params_old,method="SLSQP",jac=score_1,args=(r_prevs,sigma_prevs,covs[:i+3,:],i,n_a-1,n_b),constraints=cons)
 
         new_params=result.x
     
@@ -180,12 +180,12 @@ def garch_fit(alphas_init,betas_init,tol,r,covs,maxiter,p,q,m,sigma_init,gammas_
         sigma_prevs=np.append(sigma_prevs,sigma)
     return params_old,i,sigma_prevs,r_prevs
 
-p=1
+p=2
 q=2
-a=np.array([0.05,0.02])
-b=np.array([0.01,0.02])
+a=np.array([0.5,0.2,0.3])
+b=np.array([0.1,0.2])
 g=np.array([0.1,0.2,0.3])
-params,i,sigma_prevs,r_prevs=garch_fit(alphas_init=a,betas_init=b,tol=1e-7,r=r,covs=covs,maxiter=100,p=p,q=q,m=3,sigma_init=0.05,gammas_init=g,N=len(r))
+params,i,sigma_prevs,r_prevs=garch_fit(alphas_init=a,betas_init=b, tol=1e-7,r=r,covs=covs,maxiter=100,p=p,q=q,m=3,sigma_init=0.05,gammas_init=g,N=len(r))
 print("params=",params)
 print("i",i)
 print("r_prevs",r_prevs)
@@ -199,8 +199,6 @@ def predict_garch(params, r_prev, sig_prev, covs_prev, M, npred, p, q):
     r_pred=np.copy(r_prev)
     print(r_pred)
     for i in range(npred):
-        yeet_r = np.flip(r_pred)
-        yeet_sig = np.flip(sig_prev)
         sigma=sigma_t_l(r_prevs,sigma_prevs,params,p,q,3,covs[-1,:])
         mu=0
         preds = nprand.normal(mu,sigma,M)
@@ -211,28 +209,45 @@ def predict_garch(params, r_prev, sig_prev, covs_prev, M, npred, p, q):
 preds=predict_garch(params, r_prevs, sigma_prevs, covs, 100, 5, p, q)
 #print(preds)
 
+def summary(params,i,sigma_prevs,r_prevs,p,q):
+    """
+    Prints the results 
+    """
+    print('{:^80}'.format("Results"))
+    print("="*80)
+    print('{:<25}'.format("Dep. Variable:"),'{:>25}'.format(self.y.name))
+    print('{:<25}'.format("Model:"),'{:>13}'.format("GARCH("),p,",",q,")")
+    print('{:<25}'.format("No. Observations:"),'{:>25}'.format(len(self.y)))
+    print('{:<25}'.format("AIC"),'{:>25}'.format("AICvalue"))
+    print('{:<25}'.format("BIC"),'{:>25}'.format("BICvalue"))
+    print('{:<25}'.format("Log Likelihood"),'{:>25}'.format("Logvalue"))
+    print("="*80)
+    print('{:>25}'.format("coef"),'{:>10}'.format("std.err"),'{:>10}'.format("z"),
+            '{:>10}'.format("P>|z|"),'{:>10}'.format("[0.025"),'{:>10}'.format("0.975]"))
+    print("-"*80)
+    # differencing term
+    if self.d == 0:
+        print('{:<14}'.format("const"),'{:>10.4f}'.format(4.23589),
+                '{:>10.4f}'.format(4.23589),'{:>10.4f}'.format(4.23589),
+                '{:>10.4f}'.format(4.23589),'{:>10.4f}'.format(4.23589),
+                '{:>10.4f}'.format(4.23589))
+    # exogenious terms
+    for (i,x) in enumerate(self.exog.columns):
+        print('{:<14}'.format(x),'{:>10.3e}'.format(self.beta[i]),
+                '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
+                '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
+                '{:>10.3e}'.format(4.23589))
+    # ar terms
+    for i in range(self.p):
+        print('{:<14}'.format("ar.L"+str(i+1)),'{:>10.3e}'.format(self.phi[i]),
+                '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
+                '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
+                '{:>10.3e}'.format(4.23589))
+    # ma terms
+    for i in range(self.q):
+        print('{:<14}'.format("ma.L"+str(i+1)),'{:>10.3e}'.format(4.23589),
+                '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
+                '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
+                '{:>10.3e}'.format(4.23589))
+    print("="*80)
 
-
-        #minimize log likelihood and get parameter estimates
-        # if((len(params_old)-4)>(len(r_prevs)+len(sigma_prevs))):
-        #     m=len(params_old)-3-(len(r_prevs)+len(sigma_prevs))
-        #     m=int(m/2)
-        #     b=int((len(params_old)-1)/2)
-        #     b=int(b-m)
-        #     params_old_s=np.concatenate((params_old[0:b+1],params_old[b+m+1:-(m+3)],params_old[-3:]))
-        #     result=minimize(logLikelihood,params_old_s,method="SLSQP", jac = score_1,args=(r_prevs,sigma_prevs,c,i+1,i,i),constraints=cons)
-        # else:
-        #     result=minimize(logLikelihood,params_old,method="SLSQP", jac = score_1,args=(r_prevs,sigma_prevs,c,i+1,n_a,n_b),constraints=cons)
-
-            #Check if difference in Euclidian norm are smaller than tol 
-        # if((len(params_old)-4)>(len(r_prevs)+len(sigma_prevs))):
-        #     m=len(params_old)-3-(len(r_prevs)+len(sigma_prevs))
-        #     m=int(m/2)
-        #     b=int((len(params_old)-1)/2)
-        #     b=int(b-m)
-        #     params_old_s=np.concatenate((params_old[0:b+1],params_old[b+m+1:-(m+3)],params_old[-3:]))
-        #     if np.linalg.norm(params_old_s - new_params)<tol:
-        #         not_tol=False
-        #     params_old[0:b+1]=new_params[0:b+1]
-        #     params_old[b+m+1:-m]=new_params[-m:]
-        # else:
