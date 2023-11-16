@@ -65,8 +65,47 @@ def score_1(P,*args):
     for ti in range(iter_start+1, t+1):
         K = np.concatenate((np.concatenate((r_i[0:1], r_i[-ti:-(ti-n_a)])), sigma_new[-ti:-(ti-n_b)], covs[ti,:]))
         b = b=1/(np.transpose(P)@K)
-        score += (1/b) * np.transpose(K) -1/2 * sum(np.square(r))*(b)**(-2) * np.transpose(K)
+        score += 1/2*(1/b) * np.transpose(K) -1/2 * sum(np.square(r))*(b)**(-2) * np.transpose(K)
     return score
+
+def Hessian_1(P,*args):
+    """
+    Computes the Hessian matrix of the log-likelihood of a GARCH(q,p) with respect to the vector
+    where vectors alphas and betas are concatenated.
+
+    Parameters:
+    alphas: A ((p+1)x1) vector.
+    betas: A (qx1) vector.
+    r: A (Nx1) vector.
+    sigma: A (Nx1) vector.
+    
+    Returns: hess, a ((p+1+q+m)x(p+1+q+m)) matrix.
+    """
+    print(args)
+    r,sigma,covs,t,n_a,n_b=args
+    r_new = np.flip(r)
+    sigma_new = np.flip(sigma)
+    r_i = np.append(r_new,1)
+
+    iter_start = max(n_a, n_b)
+    hess = np.zeros((len(P),len(P)))
+    for ti in range(iter_start+1, t+1):
+        K = np.concatenate((np.concatenate((r_i[0:1], r_i[-ti:-(ti-n_a)])), sigma_new[-ti:-(ti-n_b)], covs[ti,:]))
+        b = b=1/(np.transpose(P)@K)
+        hess += -1/2*(1/b)**(-2) * K@np.transpose(K) +1/4 * sum(np.square(r))*(b)**(-3) * K@np.transpose(K)
+    return hess
+
+def CIs(hess):
+    hess=np.linalg.inv(hess)
+    d=np.diag(hess)
+    conf_ints=np.zeros((len(d),2))
+    for i in range(len(d)):
+        u=1.96*d[i]
+        l=-1.96*d[i]
+        conf_ints[i,:]=[l,u]
+    return conf_ints
+
+
 
 def con_pos(x):
     "Constraint for the minimizer specifying positive parameters. "
@@ -104,7 +143,7 @@ def logLikelihood(P,*args):
             print(np.sqrt(2*np.pi))
             print(np.transpose(P)@K)
             print(ti)
-        l += np.log(np.sqrt(2*np.pi)) +np.log(np.transpose(P)@K) +1/2*r_new[ti]**2/((np.transpose(P)@K))**2
+        l += -1/2*np.log(np.sqrt(2*np.pi)) -1/2*np.log(np.transpose(P)@K) -1/2*r_new[ti]**2/((np.transpose(P)@K))**2
     return float(-l)
 
 def AIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
@@ -132,7 +171,7 @@ def BIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
     BIC=k*np.log(len(r_prevs))-2*logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
     return BIC
 
-def summary(params,r_prevs,p,q):
+def summary(params,r_prevs,p,q,m):
     """
     Prints the results 
     """
@@ -141,9 +180,9 @@ def summary(params,r_prevs,p,q):
     print('{:<25}'.format("Dep. Variable:"),'{:>25}'.format("CPI returns"))
     print('{:<25}'.format("Model:"),'{:>13}'.format("GARCH("),p,",",q,")")
     print('{:<25}'.format("No. Observations:"),'{:>25}'.format(len(r_prevs)))
-    print('{:<25}'.format("AIC"),'{:>25}'.format("AICvalue"))
-    print('{:<25}'.format("BIC"),'{:>25}'.format("BICvalue"))
-    print('{:<25}'.format("Log Likelihood"),'{:>25}'.format("Logvalue"))
+    print('{:<25}'.format("AIC"),'{:>25}'.format(m[0]))
+    print('{:<25}'.format("BIC"),'{:>25}'.format(m[1]))
+    print('{:<25}'.format("Log Likelihood"),'{:>25}'.format(m[2]))
     print("="*80)
     print('{:>25}'.format("coef"),'{:>10}'.format("std.err"),'{:>10}'.format("z"),
             '{:>10}'.format("P>|z|"),'{:>10}'.format("[0.025"),'{:>10}'.format("0.975]"))
