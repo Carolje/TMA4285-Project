@@ -4,6 +4,7 @@ import numpy.linalg as la
 from statsmodels.tsa.arima.model import ARIMA
 import scipy.optimize as opt
 import statistics as s
+import scipy.stats as st
 
 
 class ARMAX:
@@ -74,13 +75,26 @@ class ARMAX:
          self.init_params = np.concatenate((np.append(evo, var), beta), axis = 0)       
          self.res = opt.minimize(self.kalman_log_likelihood, self.init_params, method ='BFGS')
          return self.res
+     
+    def get_jacobian(self,params):
+        return opt.approx_fprime(params, self.kalman_log_likelihood)
+    
+    def get_hessian(self,params):
+        return opt.approx_fprime(params, self.get_jacobian)
+    
+    
    
     
     def summary(self):
         """
         Calulate the rest of the results
         """
-        
+        H = self.get_hessian(self.res.x)
+        std_errors = H.diagonal()**(-1)
+        z_val = self.res.x/std_errors
+        p_val = 1-st.norm.cdf(abs(z_val))
+        lower = self.res.x - st.norm.ppf(0.95)*std_errors 
+        upper = self.res.x + st.norm.ppf(0.95)*std_errors 
         
         
         """
@@ -102,31 +116,46 @@ class ARMAX:
         for (i,x) in enumerate(self.exog.columns):
             init = self.init_params[3:3+len(self.exog.columns)]
             res = self.res.x[3:3+len(self.exog.columns)]
+            std = std_errors[3:3+len(self.exog.columns)]
+            z = z_val[3:3+len(self.exog.columns)]
+            p = p_val[3:3+len(self.exog.columns)]
+            u = upper[3:3+len(self.exog.columns)]
+            l = lower[3:3+len(self.exog.columns)]
             print('{:<14}'.format(x),'{:>10.3e}'.format(init[i]),
-                  '{:>10.3e}'.format(res[i]),'{:>10.3e}'.format(4.23589),
-                  '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
-                  '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589))
+                  '{:>10.3e}'.format(res[i]),'{:>10.3e}'.format(std[i]),
+                  '{:>10.3e}'.format(z[i]),'{:>10.3e}'.format(p[i]),
+                  '{:>10.3e}'.format(l[i]),'{:>10.3e}'.format(u[i]))
         # ar terms
         for i in range(self.p):
             init = self.init_params[:2]
             res = self.res.x[:2]
+            std = std_errors[:2]
+            z = z_val[:2]
+            p = p_val[:2]
+            u = upper[:2]
+            l = upper[:2]
             print('{:<14}'.format("ar.L"+str(i+1)),'{:>10.3e}'.format(init[i]),
-                  '{:>10.3e}'.format(res[i]),'{:>10.3e}'.format(4.23589),
-                  '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
-                  '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589))
+                  '{:>10.3e}'.format(res[i]),'{:>10.3e}'.format(std[i]),
+                  '{:>10.3e}'.format(z[i]),'{:>10.3e}'.format(p[i]),
+                  '{:>10.3e}'.format(l[i]),'{:>10.3e}'.format(u[i]))
         # ma terms
         for i in range(self.q):
             init = self.init_params[3+len(self.exog.columns):]
             res = self.res.x[3+len(self.exog.columns):]
-            print('{:<14}'.format("ma.L"+str(i+1)),'{:>10.3e}'.format(4.23589),
-                  '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
-                  '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
-                  '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589))
+            std = std_errors[3+len(self.exog.columns):]
+            z = z_val[3+len(self.exog.columns):]
+            p = p_val[3+len(self.exog.columns):]
+            u = upper[3+len(self.exog.columns):]
+            l = lower[3+len(self.exog.columns):]
+            print('{:<14}'.format("ma.L"+str(i+1)),'{:>10.3e}'.format(init[i]),
+                  '{:>10.3e}'.format(res[i]),'{:>10.3e}'.format(std[i]),
+                  '{:>10.3e}'.format(z[i]),'{:>10.3e}'.format(p[i]),
+                  '{:>10.3e}'.format(l[i]),'{:>10.3e}'.format(u[i]))
         #sigma
         print('{:<14}'.format("sigma"),'{:>10.3e}'.format(self.init_params[2]),
-              '{:>10.3e}'.format(self.res.x[2]),'{:>10.3e}'.format(4.23589),
-              '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
-              '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589))
+              '{:>10.3e}'.format(self.res.x[2]),'{:>10.3e}'.format(std_errors[2]),
+              '{:>10.3e}'.format(z_val[2]),'{:>10.3e}'.format(p_val[2]),
+              '{:>10.3e}'.format(lower[2]),'{:>10.3e}'.format(upper[2]))
         print("="*91)
         
         
