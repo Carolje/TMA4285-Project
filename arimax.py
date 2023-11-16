@@ -29,7 +29,7 @@ class ARMAX:
         y = np.array(self.y)
         exog = np.array(self.exog)
         # params = [phi1, phi2, sigma, beta0, beta1, beta2, beta3]
-        evo, var, beta = params[0:2], params[2], params[3:]
+        evo, var, beta = params[0:2], params[2], params[3:7] #params[7:9], params[9:].reshape((self.p, self.p))
         # Initial conditions
         x_0, P_0 = np.ones(self.p)*s.mean(y), np.zeros((self.p,self.p))
         np.fill_diagonal(P_0, s.variance(y))
@@ -41,7 +41,7 @@ class ARMAX:
         obsv_matrix = np.zeros(self.p)      
         obsv_matrix[0] = 1
         # v_t - white noise 1x1
-        sigma2 = var            
+        sigma2 = var*var            
         # H 1x4
         exog_matrix = beta
         # G 2x1
@@ -63,24 +63,24 @@ class ARMAX:
             x_tt1[t] = evo_matrix @ x_tt[t-1]
             P_tt1[t] = (evo_matrix @ P_tt[t-1].reshape((2,2)) @ evo_matrix.T + noise_state).reshape((1,4))
             #filter
+            if obsv_matrix @ P_tt1[t].reshape((2,2)) @ obsv_matrix.T == 0:
+                print('hva')
             K_t = P_tt1[t].reshape((2,2)) @ obsv_matrix.T * 1/(obsv_matrix @ P_tt1[t].reshape((2,2)) @ obsv_matrix.T)
             x_tt[t] = x_tt1[t] + K_t * (y[t] - obsv_matrix @ x_tt1[t] - exog_matrix @ exog[t])
             P_tt[t] = ((np.identity(2) - K_t @ obsv_matrix) @ P_tt1[t].reshape((2,2))).reshape((1,4))
             
         # Likelihood and minimize
         neg_ll = 0
-        for t in range(len(x_tt)):
+        for t in range(1,len(x_tt)):
             Sig_t = obsv_matrix @ P_tt1[t].reshape((2,2)) @ obsv_matrix.T
             res_t = y[t] - obsv_matrix @ x_tt1[t] - exog_matrix @ exog[t] 
-            # if Sig_t == np.nan:
-            #     print('skraaa')
-            neg_ll += np.log(Sig_t) + res_t**2/ Sig_t
+            neg_ll += np.log(np.abs(Sig_t)) + res_t**2/ np.abs(Sig_t)
 
         print(neg_ll)
         return neg_ll
 
-    def fit_kalman(self, evo, var, beta):
-         init_params = np.concatenate((np.append(evo, var), beta), axis = 0)       
+    def fit_kalman(self, evo, var, beta, x0, P0):
+         init_params = np.concatenate((np.append(evo, var), np.concatenate((beta, np.concatenate((x0, P0),axis=0)),axis=0)), axis = 0)       
          res = opt.minimize(self.kalman_log_likelihood, init_params, method ='BFGS')
          return res
    
