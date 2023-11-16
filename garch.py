@@ -3,7 +3,7 @@ import pandas as pd
 from scipy.optimize import minimize
 from numpy.linalg import norm
 import dataTransformations as dF
-#import arch
+import arch
 import numpy.random as nprand
 import garchFuncs as gF
 
@@ -62,8 +62,8 @@ def garch_fit(alphas_init,betas_init,tol,r,covs,maxiter,p,q,m,sigma_init,gammas_
         print(i)
         c=covs[i+3,:]
         sigma=gF.sigma_t_l(r_prevs,sigma_prevs,params_old,p,q,m,c)        
-        result=minimize(gF.logLikelihood,params_old,method="SLSQP",args=(r_prevs,sigma_prevs,covs[:i+3,:],i,n_a-1,n_b),constraints=cons,tol=1e-12, options = {"maxiter": 20000,
-                                                                                                                                                              "disp": True}) #,jac=gF.score_1
+        result=minimize(gF.logLikelihood,params_old,method="SLSQP",args=(r_prevs,sigma_prevs,covs[:i+3,:],i,n_a-1,n_b),constraints=cons,tol=1e-2, options = {"maxiter": 20000,
+                                                                                                                                                              "disp": False}) #,jac=gF.score_1
         new_params=result.x
     
         if np.linalg.norm(params_old - new_params)<tol:
@@ -81,16 +81,16 @@ b=np.array([0.1,0.2])
 g=np.array([0.1,0.2,0.3])
 sigma_init = np.sqrt(sample_variance(r))
 params,i,sigma_prevs,r_prevs=garch_fit(alphas_init=a,betas_init=b, tol=1e-7,r=r,covs=covs,maxiter=100,p=p,q=q,m=3,sigma_init=sigma_init,gammas_init=g,N=len(r))
-print("params=",params)
+
 #print("i",i)
 #print("r_prevs",r_prevs)
 #print("sigma_prevs",sigma_prevs)
 
 #print(gF.AIC(len(params),params,r_prevs,sigma_prevs,covs[i,:],t,n_a,n_b))
-# model=arch.arch_model(cpi_diff,x=covs,mean="ARX",vol="GARCH",p=3,q=2)
-# results=model.fit()
-# print(results)
-
+model=arch.arch_model(cpi_diff,x=covs,mean="ARX",vol="GARCH",p=3,q=2)
+results=model.fit()
+print(results)
+gF.summary(params,r_prevs,p,q)
 def predict_garch(params, r_prev, sig_prev, covs_prev, M, npred, p, q):
     r_pred=np.copy(r_prev)
     for i in range(npred):
@@ -101,33 +101,9 @@ def predict_garch(params, r_prev, sig_prev, covs_prev, M, npred, p, q):
         r_pred = np.append(r_pred,mp)
     return r_pred
 
-#preds=predict_garch(params, r_prevs, sigma_prevs, covs, 100, 5, p, q)
-
-def train_test_split(response, covs, perc):
-    n = len(response)
-    index_train = np.array(range(0,n-1))[0:int((n-1)*perc)]
-    mask = np.full(len(response),True,dtype=bool)
-    mask[index_train] = False
-    response_test = response[mask]
-    response_train = response[~mask]
-    covs_test = covs[mask,]
-    covs_train = covs[~mask,]
-    return (response_test, response_train, covs_test, covs_train)
-
-r_test, r_train, covs_test, covs_train = train_test_split(r, covs, 0.7)
-#print("r_test",len(r_test))
-#print("r_train",len(r_train))
-#print("covs_test",np.shape(covs_test))
-#print("covs_train",np.shape(covs_train))
 
 
-def AIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
-    AIC=2*k+2*gF.logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
-    return AIC
-
-def BIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
-    BIC=k*np.log(len(r_prevs))+2*gF.logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
-    return BIC
+r_test, r_train, covs_test, covs_train = gF.train_test_split(r, covs, 0.7)
 
 sigma_prevs=np.array([sigma_init])
 n_a = p
@@ -136,5 +112,5 @@ for i in range(len(r)-1):
         sigma=gF.sigma_t_l(r[:i+1],sigma_prevs,params,p,q,3,covs[i,:])
         sigma_prevs=np.append(sigma_prevs,sigma)
 
-print("AIC",AIC(len(params),params,r,sigma_prevs,covs,len(r)-1,n_a,n_b))
-print("BIC",BIC(len(params),params,r,sigma_prevs,covs,len(r)-1,n_a,n_b))
+print("AIC",gF.AIC(len(params),params,r,sigma_prevs,covs,len(r)-1,n_a,n_b))
+print("BIC",gF.BIC(len(params),params,r,sigma_prevs,covs,len(r)-1,n_a,n_b))
