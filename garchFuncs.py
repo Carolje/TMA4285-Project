@@ -65,7 +65,7 @@ def score_1(P,*args):
     for ti in range(iter_start+1, t+1):
         K = np.concatenate((np.concatenate((r_i[0:1], r_i[-ti:-(ti-n_a)])), sigma_new[-ti:-(ti-n_b)], covs[ti,:]))
         b = b=1/(np.transpose(P)@K)
-        score += (1/b) * np.transpose(K) -1/2 * sum(np.square(r))*(b)**(-2) * np.transpose(K)
+        score += 1/2*(1/b) * np.transpose(K) -1/2 * sum(np.square(r))*(b)**(-2) * np.transpose(K)
     return score
 
 def Hessian_1(P,*args):
@@ -143,7 +143,7 @@ def logLikelihood(P,*args):
             print(np.sqrt(2*np.pi))
             print(np.transpose(P)@K)
             print(ti)
-        l += np.log(np.sqrt(2*np.pi)) +np.log(np.transpose(P)@K) +1/2*r_new[ti]**2/((np.transpose(P)@K))**2
+        l += -1/2*np.log(np.sqrt(2*np.pi)) -1/2*np.log(np.transpose(P)@K) -1/2*r_new[ti]**2/((np.transpose(P)@K))**2
     return float(-l)
 
 def AIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
