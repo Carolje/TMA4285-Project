@@ -109,10 +109,18 @@ def logLikelihood(P,*args):
     for ti in range(iter_start+1, t+1):
         r_temp=np.concatenate((r_new[0:1],r_new[-ti:-(ti-n_a)]))
         K = np.concatenate((r_temp, sigma_new[-ti:-(ti-n_b)], covs[ti,:]))
-        l += - np.log(np.sqrt(2*np.pi)) - np.log(np.transpose(P)@K) -1/2*r_new[ti]**2/((np.transpose(P)@K))**2
+        l += np.log(np.sqrt(2*np.pi)) +np.log(np.transpose(P)@K) +1/2*r_new[ti]**2/((np.transpose(P)@K))**2
         #L=L*(1/(np.sqrt(2*np.pi*np.transpose(P)@K))*np.exp(-1/2*r[ti]**2/(np.transpose(P)@K)**2))
     #l=-np.log(L)
-    return float(l)
+    return float(-l)
+
+def AIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
+    AIC=2*k+2*logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
+    return AIC
+
+def BIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
+    BIC=k*np.log(len(r_prevs))+2*logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
+    return BIC
 
 
 def summary(params,i,sigma_prevs,r_prevs,p,q,d,covs):

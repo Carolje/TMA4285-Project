@@ -58,7 +58,7 @@ def garch_fit(alphas_init,betas_init,tol,r,covs,maxiter,p,q,m,sigma_init,gammas_
         print(i)
         c=covs[i+3,:]
         sigma=gF.sigma_t_l(r_prevs,sigma_prevs,params_old,p,q,m,c)        
-        result=minimize(gF.logLikelihood,params_old,method="SLSQP",jac=gF.score_1,args=(r_prevs,sigma_prevs,covs[:i+3,:],i,n_a-1,n_b),constraints=cons)
+        result=minimize(gF.logLikelihood,params_old,method="SLSQP",args=(r_prevs,sigma_prevs,covs[:i+3,:],i,n_a-1,n_b),constraints=cons) #,jac=gF.score_1
         new_params=result.x
     
         if np.linalg.norm(params_old - new_params)<tol:
@@ -80,9 +80,10 @@ print("i",i)
 print("r_prevs",r_prevs)
 print("sigma_prevs",sigma_prevs)
 
-model=arch.arch_model(cpi_diff,x=covs,mean="ARX",vol="GARCH",p=3,q=2)
-results=model.fit()
-print(results)
+#print(gF.AIC(len(params),params,r_prevs,sigma_prevs,covs[i,:],t,n_a,n_b))
+# model=arch.arch_model(cpi_diff,x=covs,mean="ARX",vol="GARCH",p=3,q=2)
+# results=model.fit()
+# print(results)
 
 def predict_garch(params, r_prev, sig_prev, covs_prev, M, npred, p, q):
     r_pred=np.copy(r_prev)
