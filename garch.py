@@ -91,8 +91,7 @@ params,i,sigma_prevs,r_prevs=garch_fit(alphas_init=a,betas_init=b, tol=1e-7,r=r,
 # model=arch.arch_model(cpi_diff,x=covs,mean="ARX",vol="GARCH",p=3,q=2)
 # results=model.fit()
 # print(results)
-m=[1,1,1]
-#gF.summary(params,r_prevs,p,q,m)
+
 
 def predict_garch(params, r_prev, sig_prev, covs_prev, M, npred, p, q):
     r_pred=np.copy(r_prev)
@@ -109,32 +108,40 @@ def predict_garch(params, r_prev, sig_prev, covs_prev, M, npred, p, q):
 # r_test, r_train, covs_test, covs_train = gF.train_test_split(r, covs, 0.7)
 
 
-# sigma_prevs=np.array([sigma_init])
+sigma_1=np.array([sigma_init])
 n_a = p
 n_b = q
-# for i in range(len(r)-1):
-#         sigma=gF.sigma_t_l(r[:i+1],sigma_prevs,params,p,q,3,covs[i,:])
-#         sigma_prevs=np.append(sigma_prevs,sigma)
+for i in range(len(r)-1):
+        sigma=gF.sigma_t_l(r[:i+1],sigma_1,params,p,q,3,covs[i,:])
+        sigma_1=np.append(sigma_1,sigma)
 
-#print("AIC",gF.AIC(len(params),params,r,sigma_prevs,covs,len(r)-1,n_a,n_b))
-#print("BIC",gF.BIC(len(params),params,r,sigma_prevs,covs,len(r)-1,n_a,n_b))
+AIC=gF.AIC(len(params),params,r,sigma_1,covs,len(r)-1,n_a,n_b)
+BIC=gF.BIC(len(params),params,r,sigma_1,covs,len(r)-1,n_a,n_b)
 #print(params,r_prevs,sigma_prevs,len(r_prevs)-1,n_a-1,n_b)
 
 a=r_prevs,sigma_prevs,covs[:len(r_prevs),:],len(r_prevs)-1,n_a,n_b
 #he=approx_hess((params,*args),gF.logLikelihood)
-result=minimize(gF.logLikelihood,params,method="L-BFGS-B",args=a,tol=1e-2)
-print(result.keys())
-h=result.hess_inv.todense()
+#result=minimize(gF.logLikelihood,params,method="L-BFGS-B",args=a,tol=1e-2)
+#print(result.keys())
+#h=result.hess_inv.todense()
 # print(args)
-# h=gF.Hessian_1(params,*args)
-print(h)
-conf_ints=gF.CIs(h)
-print(conf_ints)
+#h=gF.Hessian_1(params,*a)
+#print("h",h)
+#conf_ints=gF.CIs(h)
+#print(conf_ints)
 
-def get_jacobian(params):
-    return approx_fprime(params, gF.logLikelihood)
+def get_jacobian(params,*args):
+    return approx_fprime(params, gF.logLikelihood,1.4901161193847656e-08,r_prevs,sigma_prevs,covs[:len(r_prevs),:],len(r_prevs)-1,n_a,n_b)
 
 def get_hessian(params):
-    return approx_fprime(params, get_jacobian)
+    return approx_fprime(params, get_jacobian,1.4901161193847656e-08,r_prevs,sigma_prevs,covs[:len(r_prevs),:],len(r_prevs)-1,n_a,n_b)
 
-get_hessian(params)
+h=get_hessian(params)
+
+conf_ints=gF.CIs(h)
+print("c",conf_ints)
+m=[AIC,BIC]
+print(m)
+
+gF.summary(params,r_prevs,p,q,m,conf_ints)
+

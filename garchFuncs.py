@@ -100,8 +100,8 @@ def CIs(hess):
     d=np.diag(hess)
     conf_ints=np.zeros((len(d),2))
     for i in range(len(d)):
-        u=1.96*d[i]
-        l=-1.96*d[i]
+        u=1.96*np.abs(d[i])
+        l=-1.96*np.abs(d[i])
         conf_ints[i,:]=[l,u]
     return conf_ints
 
@@ -139,19 +139,15 @@ def logLikelihood(P,*args):
     for ti in range(iter_start+1, t+1):
         r_temp=np.concatenate((r_new[0:1],r_new[-ti:-(ti-n_a)]))
         K = np.concatenate((r_temp, sigma_new[-ti:-(ti-n_b)], covs[ti,:]))
-        if np.sqrt(2*np.pi)<0 or (np.transpose(P)@K)<0:
-            print(np.sqrt(2*np.pi))
-            print(np.transpose(P)@K)
-            print(ti)
         l += -1/2*np.log(np.sqrt(2*np.pi)) -1/2*np.log(np.transpose(P)@K) -1/2*r_new[ti]**2/((np.transpose(P)@K))**2
     return float(-l)
 
 def AIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
-    AIC=2*k+2*logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
+    AIC=2*k-2*logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
     return AIC
 
 def BIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
-    BIC=k*np.log(len(r_prevs))+2*logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
+    BIC=k*np.log(len(r_prevs))-2*logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
     return BIC
 def train_test_split(response, covs, perc):
     n = len(response)
@@ -164,14 +160,14 @@ def train_test_split(response, covs, perc):
     covs_train = covs[~mask,]
     return (response_test, response_train, covs_test, covs_train)
 def AIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
-    AIC=2*k-2*logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
+    AIC=2*k+2*logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
     return AIC
 
 def BIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
-    BIC=k*np.log(len(r_prevs))-2*logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
+    BIC=k*np.log(len(r_prevs))+2*logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
     return BIC
 
-def summary(params,r_prevs,p,q,m):
+def summary(params,r_prevs,p,q,m,conf_ints):
     """
     Prints the results 
     """
@@ -182,10 +178,8 @@ def summary(params,r_prevs,p,q,m):
     print('{:<25}'.format("No. Observations:"),'{:>25}'.format(len(r_prevs)))
     print('{:<25}'.format("AIC"),'{:>25}'.format(m[0]))
     print('{:<25}'.format("BIC"),'{:>25}'.format(m[1]))
-    print('{:<25}'.format("Log Likelihood"),'{:>25}'.format(m[2]))
     print("="*80)
-    print('{:>25}'.format("coef"),'{:>10}'.format("std.err"),'{:>10}'.format("z"),
-            '{:>10}'.format("P>|z|"),'{:>10}'.format("[0.025"),'{:>10}'.format("0.975]"))
+    print('{:>25}'.format("coef"),'{:>10}'.format("[0.025"),'{:>10}'.format("0.975]"))
     print("-"*80)
 
     names=[]
@@ -198,7 +192,6 @@ def summary(params,r_prevs,p,q,m):
     names.append("Monthly salary")
     for j in range(len(params)):
         print('{:<14}'.format(names[j]),'{:>10.3e}'.format(params[j]),
-                '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
-                '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
-                '{:>10.3e}'.format(4.23589))
+                '{:>10.3e}'.format(conf_ints[j,0]),
+                '{:>10.3e}'.format(conf_ints[j,1]))
     print("="*80)
