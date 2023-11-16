@@ -18,4 +18,7 @@ def sample_variance(vec):
 
 #p-values, plot code, test error. 
 
+def train_test_split(response, covs, perc):
+    return 
+
 #Test error. 
