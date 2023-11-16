@@ -1,6 +1,6 @@
 import numpy.random as nprand
 import numpy as np
-
+import random as rand
 
 def predict_garch(alphas, betas, gammas, r_prev, sig_prev, params_pred, N, npred, p, q):
     preds = np.ones(N)
@@ -19,6 +19,14 @@ def sample_variance(vec):
 #p-values, plot code, test error. 
 
 def train_test_split(response, covs, perc):
-    return 
+    n = len(response)
+    index_train = np.array(range(0,n-1))[0:int((n-1)*perc)]
+    mask = np.full(len(response),True,dtype=bool)
+    mask[index_train] = False
+    response_test = response[mask]
+    response_train = response[~mask]
+    covs_test = covs[mask,]
+    covs_train = covs[~mask,]
+    return (response_test, response_train, covs_test, covs_train)
 
 #Test error. 
