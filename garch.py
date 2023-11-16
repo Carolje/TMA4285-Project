@@ -62,7 +62,7 @@ def garch_fit(alphas_init,betas_init,tol,r,covs,maxiter,p,q,m,sigma_init,gammas_
         print(i)
         c=covs[i+3,:]
         sigma=gF.sigma_t_l(r_prevs,sigma_prevs,params_old,p,q,m,c)        
-        result=minimize(gF.logLikelihood,params_old,method="SLSQP",args=(r_prevs,sigma_prevs,covs[:i+3,:],i,n_a-1,n_b),constraints=cons,tol=1e-20, options = {"maxiter": 20000,
+        result=minimize(gF.logLikelihood,params_old,method="SLSQP",args=(r_prevs,sigma_prevs,covs[:i+3,:],i,n_a-1,n_b),constraints=cons,tol=1e-12, options = {"maxiter": 20000,
                                                                                                                                                               "disp": True}) #,jac=gF.score_1
         new_params=result.x
     
@@ -122,15 +122,19 @@ r_test, r_train, covs_test, covs_train = train_test_split(r, covs, 0.7)
 
 
 def AIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
-    AIC=2*k+2*logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
+    AIC=2*k+2*gF.logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
     return AIC
 
 def BIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
-    BIC=k*np.log(len(r_prevs))+2*logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
+    BIC=k*np.log(len(r_prevs))+2*gF.logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
     return BIC
 
-#sigma_prevs=np.array([sigma_init])
-#
+sigma_prevs=np.array([sigma_init])
+n_a = p
+n_b = q
+for i in range(len(r)-1):
+        sigma=gF.sigma_t_l(r[:i+1],sigma_prevs,params,p,q,3,covs[i,:])
+        sigma_prevs=np.append(sigma_prevs,sigma)
 
-#print("AIC",AIC(len(params),params,r,sigma_prevs,covs,len(r),n_a,n_b))
-#print("BIC",BIC(len(params),params,r,sigma_prevs,covs,len(r),n_a,n_b))
+print("AIC",AIC(len(params),params,r,sigma_prevs,covs,len(r)-1,n_a,n_b))
+print("BIC",BIC(len(params),params,r,sigma_prevs,covs,len(r)-1,n_a,n_b))
