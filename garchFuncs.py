@@ -59,19 +59,13 @@ def score_1(P,*args):
     r,sigma,covs,t,n_a,n_b=args
     r_new = np.flip(r)
     sigma_new = np.flip(sigma)
-    #r_new = [r[i] for i in range(len(r)-1,-1,-1)]
-    #sigma_new = [sigma[i] for i in range(len(sigma)-1,-1,-1)]
     r_i = np.append(r_new,1)
-    #New stuff
     iter_start = max(n_a, n_b)
     score = 0
     for ti in range(iter_start+1, t+1):
         K = np.concatenate((np.concatenate((r_i[0:1], r_i[-ti:-(ti-n_a)])), sigma_new[-ti:-(ti-n_b)], covs[ti,:]))
         b = b=1/(np.transpose(P)@K)
         score += (1/b) * np.transpose(K) -1/2 * sum(np.square(r))*(b)**(-2) * np.transpose(K)
-    #K = np.concatenate((r_i[:n_a], sigma_new[:n_b],covs)) #Combine r_i and sigma into one vector. 
-    #b=1/(np.transpose(P)@K)
-    #score = (len(r))/2 * (1/b) * np.transpose(K) -1/2 * sum(np.square(r))*(b)**(-2) * np.transpose(K)
     return score
 
 def con_pos(x):
@@ -98,12 +92,9 @@ def logLikelihood(P,*args):
     """
     r,sigma,covs,t,n_a,n_b=args
     sigma_new = np.flip(sigma)
-    #r_new = [r[i] for i in range(len(r)-1,-1,-1)]
-    #sigma_new = [sigma[i] for i in range(len(sigma)-1,-1,-1)]
     r_i = np.append(r,1)
     r_i=np.array(r_i)
     r_new=np.flip(r_i)
-    #K = np.concatenate((r_i[:n_a],sigma_new[:n_b],covs)) #Combine r_i and sigma into one vector.
     iter_start = max(n_a, n_b)
     l=0
     for ti in range(iter_start+1, t+1):
@@ -114,8 +105,6 @@ def logLikelihood(P,*args):
             print(np.transpose(P)@K)
             print(ti)
         l += np.log(np.sqrt(2*np.pi)) +np.log(np.transpose(P)@K) +1/2*r_new[ti]**2/((np.transpose(P)@K))**2
-        #L=L*(1/(np.sqrt(2*np.pi*np.transpose(P)@K))*np.exp(-1/2*r[ti]**2/(np.transpose(P)@K)**2))
-    #l=-np.log(L)
     return float(-l)
 
 def AIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
