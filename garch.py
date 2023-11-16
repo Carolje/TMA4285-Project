@@ -21,6 +21,10 @@ r = np.zeros(len(cpi_diff))
 for i in range(1,len(cpi_diff)):
     r[i] = (cpi_diff[i]-cpi_diff[i-1])/cpi_diff[i-1]
 
+def sample_variance(vec):
+    return np.sum((vec-np.mean(vec))**2)/(len(vec)-1)
+
+
 def garch_fit(alphas_init,betas_init,tol,r,covs,maxiter,p,q,m,sigma_init,gammas_init,N):
     """ Function for fitting a GARCHX(p,q) model and estimating parameters.
 
@@ -58,7 +62,8 @@ def garch_fit(alphas_init,betas_init,tol,r,covs,maxiter,p,q,m,sigma_init,gammas_
         print(i)
         c=covs[i+3,:]
         sigma=gF.sigma_t_l(r_prevs,sigma_prevs,params_old,p,q,m,c)        
-        result=minimize(gF.logLikelihood,params_old,method="SLSQP",args=(r_prevs,sigma_prevs,covs[:i+3,:],i,n_a-1,n_b),constraints=cons) #,jac=gF.score_1
+        result=minimize(gF.logLikelihood,params_old,method="SLSQP",args=(r_prevs,sigma_prevs,covs[:i+3,:],i,n_a-1,n_b),constraints=cons,tol=1e-2, options = {"maxiter": 20000,
+                                                                                                                                                              "disp": False}) #,jac=gF.score_1
         new_params=result.x
     
         if np.linalg.norm(params_old - new_params)<tol:
@@ -74,17 +79,18 @@ q=2
 a=np.array([0.5,0.2,0.3])
 b=np.array([0.1,0.2])
 g=np.array([0.1,0.2,0.3])
-params,i,sigma_prevs,r_prevs=garch_fit(alphas_init=a,betas_init=b, tol=1e-7,r=r,covs=covs,maxiter=100,p=p,q=q,m=3,sigma_init=0.05,gammas_init=g,N=len(r))
-print("params=",params)
-print("i",i)
-print("r_prevs",r_prevs)
-print("sigma_prevs",sigma_prevs)
+sigma_init = np.sqrt(sample_variance(r))
+params,i,sigma_prevs,r_prevs=garch_fit(alphas_init=a,betas_init=b, tol=1e-7,r=r,covs=covs,maxiter=100,p=p,q=q,m=3,sigma_init=sigma_init,gammas_init=g,N=len(r))
+
+#print("i",i)
+#print("r_prevs",r_prevs)
+#print("sigma_prevs",sigma_prevs)
 
 #print(gF.AIC(len(params),params,r_prevs,sigma_prevs,covs[i,:],t,n_a,n_b))
-# model=arch.arch_model(cpi_diff,x=covs,mean="ARX",vol="GARCH",p=3,q=2)
-# results=model.fit()
-# print(results)
-
+model=arch.arch_model(cpi_diff,x=covs,mean="ARX",vol="GARCH",p=3,q=2)
+results=model.fit()
+print(results)
+gF.summary(params,r_prevs,p,q)
 def predict_garch(params, r_prev, sig_prev, covs_prev, M, npred, p, q):
     r_pred=np.copy(r_prev)
     for i in range(npred):
@@ -95,8 +101,16 @@ def predict_garch(params, r_prev, sig_prev, covs_prev, M, npred, p, q):
         r_pred = np.append(r_pred,mp)
     return r_pred
 
-preds=predict_garch(params, r_prevs, sigma_prevs, covs, 100, 5, p, q)
-#print(preds)
 
 
+r_test, r_train, covs_test, covs_train = gF.train_test_split(r, covs, 0.7)
 
+sigma_prevs=np.array([sigma_init])
+n_a = p
+n_b = q
+for i in range(len(r)-1):
+        sigma=gF.sigma_t_l(r[:i+1],sigma_prevs,params,p,q,3,covs[i,:])
+        sigma_prevs=np.append(sigma_prevs,sigma)
+
+print("AIC",gF.AIC(len(params),params,r,sigma_prevs,covs,len(r)-1,n_a,n_b))
+print("BIC",gF.BIC(len(params),params,r,sigma_prevs,covs,len(r)-1,n_a,n_b))

@@ -59,24 +59,18 @@ def score_1(P,*args):
     r,sigma,covs,t,n_a,n_b=args
     r_new = np.flip(r)
     sigma_new = np.flip(sigma)
-    #r_new = [r[i] for i in range(len(r)-1,-1,-1)]
-    #sigma_new = [sigma[i] for i in range(len(sigma)-1,-1,-1)]
     r_i = np.append(r_new,1)
-    #New stuff
     iter_start = max(n_a, n_b)
     score = 0
     for ti in range(iter_start+1, t+1):
         K = np.concatenate((np.concatenate((r_i[0:1], r_i[-ti:-(ti-n_a)])), sigma_new[-ti:-(ti-n_b)], covs[ti,:]))
         b = b=1/(np.transpose(P)@K)
         score += (1/b) * np.transpose(K) -1/2 * sum(np.square(r))*(b)**(-2) * np.transpose(K)
-    #K = np.concatenate((r_i[:n_a], sigma_new[:n_b],covs)) #Combine r_i and sigma into one vector. 
-    #b=1/(np.transpose(P)@K)
-    #score = (len(r))/2 * (1/b) * np.transpose(K) -1/2 * sum(np.square(r))*(b)**(-2) * np.transpose(K)
     return score
 
 def con_pos(x):
     "Constraint for the minimizer specifying positive parameters. "
-    return np.abs(x)
+    return x**2
 
 def logLikelihood(P,*args):
     """ Function that calculates the log likelihood.
@@ -98,20 +92,19 @@ def logLikelihood(P,*args):
     """
     r,sigma,covs,t,n_a,n_b=args
     sigma_new = np.flip(sigma)
-    #r_new = [r[i] for i in range(len(r)-1,-1,-1)]
-    #sigma_new = [sigma[i] for i in range(len(sigma)-1,-1,-1)]
     r_i = np.append(r,1)
     r_i=np.array(r_i)
     r_new=np.flip(r_i)
-    #K = np.concatenate((r_i[:n_a],sigma_new[:n_b],covs)) #Combine r_i and sigma into one vector.
     iter_start = max(n_a, n_b)
     l=0
     for ti in range(iter_start+1, t+1):
         r_temp=np.concatenate((r_new[0:1],r_new[-ti:-(ti-n_a)]))
         K = np.concatenate((r_temp, sigma_new[-ti:-(ti-n_b)], covs[ti,:]))
+        if np.sqrt(2*np.pi)<0 or (np.transpose(P)@K)<0:
+            print(np.sqrt(2*np.pi))
+            print(np.transpose(P)@K)
+            print(ti)
         l += np.log(np.sqrt(2*np.pi)) +np.log(np.transpose(P)@K) +1/2*r_new[ti]**2/((np.transpose(P)@K))**2
-        #L=L*(1/(np.sqrt(2*np.pi*np.transpose(P)@K))*np.exp(-1/2*r[ti]**2/(np.transpose(P)@K)**2))
-    #l=-np.log(L)
     return float(-l)
 
 def AIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
@@ -121,9 +114,25 @@ def AIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
 def BIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
     BIC=k*np.log(len(r_prevs))+2*logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
     return BIC
+def train_test_split(response, covs, perc):
+    n = len(response)
+    index_train = np.array(range(0,n-1))[0:int((n-1)*perc)]
+    mask = np.full(len(response),True,dtype=bool)
+    mask[index_train] = False
+    response_test = response[mask]
+    response_train = response[~mask]
+    covs_test = covs[mask,]
+    covs_train = covs[~mask,]
+    return (response_test, response_train, covs_test, covs_train)
+def AIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
+    AIC=2*k-2*logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
+    return AIC
 
+def BIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
+    BIC=k*np.log(len(r_prevs))-2*logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
+    return BIC
 
-def summary(params,i,sigma_prevs,r_prevs,p,q,d,covs):
+def summary(params,r_prevs,p,q):
     """
     Prints the results 
     """
@@ -139,27 +148,17 @@ def summary(params,i,sigma_prevs,r_prevs,p,q,d,covs):
     print('{:>25}'.format("coef"),'{:>10}'.format("std.err"),'{:>10}'.format("z"),
             '{:>10}'.format("P>|z|"),'{:>10}'.format("[0.025"),'{:>10}'.format("0.975]"))
     print("-"*80)
-    # differencing term
-    if d == 0:
-        print('{:<14}'.format("const"),'{:>10.4f}'.format(4.23589),
-                '{:>10.4f}'.format(4.23589),'{:>10.4f}'.format(4.23589),
-                '{:>10.4f}'.format(4.23589),'{:>10.4f}'.format(4.23589),
-                '{:>10.4f}'.format(4.23589))
-    # exogenious terms
-    for (j,x) in enumerate(covs):
-        print('{:<14}'.format(x),'{:>10.3e}'.format(covs[j]),
-                '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
-                '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
-                '{:>10.3e}'.format(4.23589))
-    # ar terms
-    for j in range(p):
-        print('{:<14}'.format("ar.L"+str(j+1)),'{:>10.3e}'.format(sigma_prevs),
-                '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
-                '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
-                '{:>10.3e}'.format(4.23589))
-    # ma terms
-    for j in range(q):
-        print('{:<14}'.format("ma.L"+str(j+1)),'{:>10.3e}'.format(4.23589),
+
+    names=[]
+    for i in range(p+1):
+        names.append(f"alpha {i}")
+    for i in range(q):
+        names.append(f"beta {i+1}")
+    names.append("Unemployed rate")
+    names.append("Policy rate")
+    names.append("Monthly salary")
+    for j in range(len(params)):
+        print('{:<14}'.format(names[j]),'{:>10.3e}'.format(params[j]),
                 '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
                 '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
                 '{:>10.3e}'.format(4.23589))
