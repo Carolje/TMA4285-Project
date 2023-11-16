@@ -11,8 +11,8 @@ class ARMAX:
       # overall
       self.p = p
       self.q = q
-      self.y = np.array(y)
-      self.exog = np.array(exo_data)
+      self.y = y
+      self.exog = exo_data
       # fit()
       # TODO: Initialize phi parameters
       self.phi = np.zeros(p)
@@ -26,12 +26,13 @@ class ARMAX:
       pass
 
     def kalman_log_likelihood(self, params):
-
+        y = np.array(self.y)
+        exog = np.array(self.exog)
         # params = [phi1, phi2, sigma, beta0, beta1, beta2, beta3]
         evo, var, beta = params[0:2], params[2], params[3:]
         # Initial conditions
-        x_0, P_0 = np.ones(self.p)*s.mean(self.y), np.zeros((self.p,self.p))
-        np.fill_diagonal(P_0, s.variance(self.y))
+        x_0, P_0 = np.ones(self.p)*s.mean(y), np.zeros((self.p,self.p))
+        np.fill_diagonal(P_0, s.variance(y))
         # F 2x2
         evo_matrix = np.zeros((self.p,self.p))        
         evo_matrix[0,:] = evo
@@ -49,28 +50,28 @@ class ARMAX:
         noise_state = np.zeros((2,2))
         noise_state[0,0] = sigma2
 
-        x_tt = np.zeros((len(self.y),2))
-        x_tt1 = np.zeros((len(self.y),2))
-        P_tt = np.zeros((len(self.y),4))
-        P_tt1 = np.zeros((len(self.y),4))
+        x_tt = np.zeros((len(y),2))
+        x_tt1 = np.zeros((len(y),2))
+        P_tt = np.zeros((len(y),4))
+        P_tt1 = np.zeros((len(y),4))
         x_tt[0] = x_0
         P_tt[0] = P_0.reshape((1,4))
         
-        for t in range(len(x_tt)):
+        for t in range(1,len(x_tt)):
             # Kalman Filter
             #prediction
             x_tt1[t] = evo_matrix @ x_tt[t-1]
             P_tt1[t] = (evo_matrix @ P_tt[t-1].reshape((2,2)) @ evo_matrix.T + noise_state).reshape((1,4))
             #filter
             K_t = P_tt1[t].reshape((2,2)) @ obsv_matrix.T * 1/(obsv_matrix @ P_tt1[t].reshape((2,2)) @ obsv_matrix.T)
-            x_tt[t] = x_tt1[t] + K_t * (self.y[t] - obsv_matrix @ x_tt1[t] - exog_matrix @ self.exog[t])
+            x_tt[t] = x_tt1[t] + K_t * (y[t] - obsv_matrix @ x_tt1[t] - exog_matrix @ exog[t])
             P_tt[t] = ((np.identity(2) - K_t @ obsv_matrix) @ P_tt1[t].reshape((2,2))).reshape((1,4))
             
         # Likelihood and minimize
         neg_ll = 0
         for t in range(len(x_tt)):
             Sig_t = obsv_matrix @ P_tt1[t].reshape((2,2)) @ obsv_matrix.T
-            res_t = self.y[t] - obsv_matrix @ x_tt1[t] - exog_matrix @ self.exog[t] 
+            res_t = y[t] - obsv_matrix @ x_tt1[t] - exog_matrix @ exog[t] 
             # if Sig_t == np.nan:
             #     print('skraaa')
             neg_ll += np.log(Sig_t) + res_t**2/ Sig_t
@@ -127,7 +128,7 @@ class ARMAX:
         print('{:^80}'.format("Results"))
         print("="*80)
         print('{:<25}'.format("Dep. Variable:"),'{:>25}'.format(self.y.name))
-        print('{:<25}'.format("Model:"),'{:>13}'.format("ARIMAX("),self.p,",",self.q,")")
+        print('{:<25}'.format("Model:"),'{:>17}'.format("ARIMAX("),self.p,",",self.q,")")
         print('{:<25}'.format("No. Observations:"),'{:>25}'.format(len(self.y)))
         print('{:<25}'.format("AIC"),'{:>25}'.format("AICvalue"))
         print('{:<25}'.format("BIC"),'{:>25}'.format("BICvalue"))
@@ -136,21 +137,15 @@ class ARMAX:
         print('{:>25}'.format("coef"),'{:>10}'.format("std.err"),'{:>10}'.format("z"),
               '{:>10}'.format("P>|z|"),'{:>10}'.format("[0.025"),'{:>10}'.format("0.975]"))
         print("-"*80)
-        # differencing term
-        if self.d == 0:
-            print('{:<14}'.format("const"),'{:>10.4f}'.format(4.23589),
-                  '{:>10.4f}'.format(4.23589),'{:>10.4f}'.format(4.23589),
-                  '{:>10.4f}'.format(4.23589),'{:>10.4f}'.format(4.23589),
-                  '{:>10.4f}'.format(4.23589))
         # exogenious terms
         for (i,x) in enumerate(self.exog.columns):
-            print('{:<14}'.format(x),'{:>10.3e}'.format(self.beta[i]),
+            print('{:<14}'.format(x),'{:>10.3e}'.format(4.23589),
                   '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
                   '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
                   '{:>10.3e}'.format(4.23589))
         # ar terms
         for i in range(self.p):
-            print('{:<14}'.format("ar.L"+str(i+1)),'{:>10.3e}'.format(self.phi[i]),
+            print('{:<14}'.format("ar.L"+str(i+1)),'{:>10.3e}'.format(4.23589),
                   '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
                   '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
                   '{:>10.3e}'.format(4.23589))
@@ -173,7 +168,7 @@ class ARMAX:
         The solution ARIMA() from python library gives
 
         """
-        model1 = ARIMA(self.y,exog=self.exog,order=(self.p,self.d,self.q))
+        model1 = ARIMA(self.y,exog=self.exog,order=(self.p,12,self.q))
         result = model1.fit()
         print(result.summary())
         
