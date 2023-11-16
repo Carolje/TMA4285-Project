@@ -28,12 +28,11 @@ result = model1.fit()
 result.summary()
 
 
-ARX = model.ARMAX(2, 12, 0, 3,cpi_diff12[12:], exog[12:])
-ARX.fit()
+ARX = model.ARMAX(2, 0, 3,cpi_diff12[12:], exog[12:])
 ARX.summary()
 ARX.pythonSolution()
 evo = np.array([0.5,0.5])
 var = 0.5
-beta = np.array([0.5,0.5,0.5])
-ARX.kalman_log_likelihood(evo, var, beta)
-
+beta = np.array([0.5,0.5,0.5,0.5])
+opt = ARX.fit_kalman(evo, var, beta)
+print(opt.x)
