@@ -1,11 +1,12 @@
 import numpy as np
 import pandas as pd
-from scipy.optimize import minimize
+from scipy.optimize import minimize, approx_fprime
 from numpy.linalg import norm
 import dataTransformations as dF
 import arch
 import numpy.random as nprand
 import garchFuncs as gF
+#from autograd import hessian
 
 #Get data and difference data
 df=pd.read_csv("Data1997-2022.csv")
@@ -82,15 +83,17 @@ g=np.array([0.1,0.2,0.3])
 sigma_init = np.sqrt(sample_variance(r))
 params,i,sigma_prevs,r_prevs=garch_fit(alphas_init=a,betas_init=b, tol=1e-7,r=r,covs=covs,maxiter=100,p=p,q=q,m=3,sigma_init=sigma_init,gammas_init=g,N=len(r))
 
-#print("i",i)
+
 #print("r_prevs",r_prevs)
 #print("sigma_prevs",sigma_prevs)
 
 #print(gF.AIC(len(params),params,r_prevs,sigma_prevs,covs[i,:],t,n_a,n_b))
-model=arch.arch_model(cpi_diff,x=covs,mean="ARX",vol="GARCH",p=3,q=2)
-results=model.fit()
-print(results)
-gF.summary(params,r_prevs,p,q)
+# model=arch.arch_model(cpi_diff,x=covs,mean="ARX",vol="GARCH",p=3,q=2)
+# results=model.fit()
+# print(results)
+m=[1,1,1]
+#gF.summary(params,r_prevs,p,q,m)
+
 def predict_garch(params, r_prev, sig_prev, covs_prev, M, npred, p, q):
     r_pred=np.copy(r_prev)
     for i in range(npred):
@@ -103,14 +106,35 @@ def predict_garch(params, r_prev, sig_prev, covs_prev, M, npred, p, q):
 
 
 
-r_test, r_train, covs_test, covs_train = gF.train_test_split(r, covs, 0.7)
+# r_test, r_train, covs_test, covs_train = gF.train_test_split(r, covs, 0.7)
 
-sigma_prevs=np.array([sigma_init])
+
+# sigma_prevs=np.array([sigma_init])
 n_a = p
 n_b = q
-for i in range(len(r)-1):
-        sigma=gF.sigma_t_l(r[:i+1],sigma_prevs,params,p,q,3,covs[i,:])
-        sigma_prevs=np.append(sigma_prevs,sigma)
+# for i in range(len(r)-1):
+#         sigma=gF.sigma_t_l(r[:i+1],sigma_prevs,params,p,q,3,covs[i,:])
+#         sigma_prevs=np.append(sigma_prevs,sigma)
 
-print("AIC",gF.AIC(len(params),params,r,sigma_prevs,covs,len(r)-1,n_a,n_b))
-print("BIC",gF.BIC(len(params),params,r,sigma_prevs,covs,len(r)-1,n_a,n_b))
+#print("AIC",gF.AIC(len(params),params,r,sigma_prevs,covs,len(r)-1,n_a,n_b))
+#print("BIC",gF.BIC(len(params),params,r,sigma_prevs,covs,len(r)-1,n_a,n_b))
+#print(params,r_prevs,sigma_prevs,len(r_prevs)-1,n_a-1,n_b)
+
+a=r_prevs,sigma_prevs,covs[:len(r_prevs),:],len(r_prevs)-1,n_a,n_b
+#he=approx_hess((params,*args),gF.logLikelihood)
+result=minimize(gF.logLikelihood,params,method="L-BFGS-B",args=a,tol=1e-2)
+print(result.keys())
+h=result.hess_inv.todense()
+# print(args)
+# h=gF.Hessian_1(params,*args)
+print(h)
+conf_ints=gF.CIs(h)
+print(conf_ints)
+
+def get_jacobian(params):
+    return approx_fprime(params, gF.logLikelihood)
+
+def get_hessian(params):
+    return approx_fprime(params, get_jacobian)
+
+get_hessian(params)
