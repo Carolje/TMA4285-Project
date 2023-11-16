@@ -92,7 +92,7 @@ def Hessian_1(P,*args):
     for ti in range(iter_start+1, t+1):
         K = np.concatenate((np.concatenate((r_i[0:1], r_i[-ti:-(ti-n_a)])), sigma_new[-ti:-(ti-n_b)], covs[ti,:]))
         b = b=1/(np.transpose(P)@K)
-        hess += -1/2*(1/b)**(-2) * np.transpose(K)@K +1/4 * sum(np.square(r))*(b)**(-3) * np.transpose(K)@K
+        hess += -1/2*(1/b)**(-2) * K@np.transpose(K) +1/4 * sum(np.square(r))*(b)**(-3) * K@np.transpose(K)
     return hess
 
 def CIs(hess):
