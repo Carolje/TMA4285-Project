@@ -7,29 +7,22 @@ import statistics as s
 
 
 class ARMAX:
-    def __init__(self, p, q, num_exo, y, exo_data,alpha_phi=0.0004, alpha_beta=0.4*10**(-12), stop_len=10**(-6)):
+    def __init__(self, p, q, y, exo_data):
       # overall
       self.p = p
       self.q = q
       self.y = y
       self.exog = exo_data
-      # fit()
-      # TODO: Initialize phi parameters
-      self.phi = np.zeros(p)
-      self.alpha_phi = alpha_phi
-      self.alpha_beta = alpha_beta
-      self.stop_len = stop_len
-      # TODO: Initialize theta parameters
-      self.theta = np.zeros(q)
-      # TODO: Initalize vector for exogenous parameters
-      self.beta = np.zeros(num_exo)
+      self.init_params = np.array([])
+      self.res = None
+      
       pass
 
     def kalman_log_likelihood(self, params):
         y = np.array(self.y)
         exog = np.array(self.exog)
         # params = [phi1, phi2, sigma, beta0, beta1, beta2, beta3]
-        evo, var, beta = params[0:2], params[2], params[3:7] #params[7:9], params[9:].reshape((self.p, self.p))
+        evo, var, beta = params[0:2], params[2], params[3:]
         # Initial conditions
         x_0, P_0 = np.ones(self.p)*s.mean(y), np.zeros((self.p,self.p))
         np.fill_diagonal(P_0, s.variance(y))
@@ -63,8 +56,6 @@ class ARMAX:
             x_tt1[t] = evo_matrix @ x_tt[t-1]
             P_tt1[t] = (evo_matrix @ P_tt[t-1].reshape((2,2)) @ evo_matrix.T + noise_state).reshape((1,4))
             #filter
-            if obsv_matrix @ P_tt1[t].reshape((2,2)) @ obsv_matrix.T == 0:
-                print('hva')
             K_t = P_tt1[t].reshape((2,2)) @ obsv_matrix.T * 1/(obsv_matrix @ P_tt1[t].reshape((2,2)) @ obsv_matrix.T)
             x_tt[t] = x_tt1[t] + K_t * (y[t] - obsv_matrix @ x_tt1[t] - exog_matrix @ exog[t])
             P_tt[t] = ((np.identity(2) - K_t @ obsv_matrix) @ P_tt1[t].reshape((2,2))).reshape((1,4))
@@ -76,86 +67,67 @@ class ARMAX:
             res_t = y[t] - obsv_matrix @ x_tt1[t] - exog_matrix @ exog[t] 
             neg_ll += np.log(np.abs(Sig_t)) + res_t**2/ np.abs(Sig_t)
 
-        print(neg_ll)
+        #print(neg_ll)
         return neg_ll
 
-    def fit_kalman(self, evo, var, beta, x0, P0):
-         init_params = np.concatenate((np.append(evo, var), np.concatenate((beta, np.concatenate((x0, P0),axis=0)),axis=0)), axis = 0)       
-         res = opt.minimize(self.kalman_log_likelihood, init_params, method ='BFGS')
-         return res
+    def fit_kalman(self, evo, var, beta):
+         self.init_params = np.concatenate((np.append(evo, var), beta), axis = 0)       
+         self.res = opt.minimize(self.kalman_log_likelihood, self.init_params, method ='BFGS')
+         return self.res
    
-    def fit(self):
-        step_len = np.inf
-        while(step_len > self.stop_len):
-           # TODO : Implement for MA
-           
-           
-           # AR
-           if self.p != 0:
-               # Calculate the residuals
-               res = self.predict() - self.y[self.p-1:]
-                
-               # Update the variables along the gradient
-               phi_step = np.dot(res, self.y[self.p-1:])
-               beta_step = np.dot(res, self.exog[self.p-1:])
-               # calculate length of total step
-               step_len = self.alpha_phi*la.norm(phi_step) + self.alpha_beta*la.norm(beta_step)
-    
-               self.phi -= self.alpha_phi*phi_step
-               self.beta -= self.alpha_beta*beta_step
-           #print(self.beta)
-           #print(self.phi)
-        print("final")
-        print(self.beta)
-        print(self.phi)
-
-    def predict(self):
-        """
-        Makes a prediction at times t
-        """
-        ar_term = np.convolve(self.y, self.phi, 'valid')
-        exog_term = np.dot(self.exog[self.p-1:], self.beta)
-        x_t = ar_term + exog_term 
-        # These are predictions not containg the first p values
-
-        
-        return x_t
     
     def summary(self):
         """
+        Calulate the rest of the results
+        """
+        
+        
+        
+        """
         Prints the results 
         """
-        print('{:^80}'.format("Results"))
-        print("="*80)
+        print('{:^51}'.format("Results"))
+        print("="*51)
         print('{:<25}'.format("Dep. Variable:"),'{:>25}'.format(self.y.name))
         print('{:<25}'.format("Model:"),'{:>17}'.format("ARIMAX("),self.p,",",self.q,")")
         print('{:<25}'.format("No. Observations:"),'{:>25}'.format(len(self.y)))
         print('{:<25}'.format("AIC"),'{:>25}'.format("AICvalue"))
         print('{:<25}'.format("BIC"),'{:>25}'.format("BICvalue"))
         print('{:<25}'.format("Log Likelihood"),'{:>25}'.format("Logvalue"))
-        print("="*80)
-        print('{:>25}'.format("coef"),'{:>10}'.format("std.err"),'{:>10}'.format("z"),
+        print("="*91)
+        print('{:>25}'.format("init.values"),'{:>10}'.format("coef"),'{:>10}'.format("std.err"),'{:>10}'.format("z"),
               '{:>10}'.format("P>|z|"),'{:>10}'.format("[0.025"),'{:>10}'.format("0.975]"))
-        print("-"*80)
+        print("-"*91)
         # exogenious terms
         for (i,x) in enumerate(self.exog.columns):
-            print('{:<14}'.format(x),'{:>10.3e}'.format(4.23589),
+            init = self.init_params[3:3+len(self.exog.columns)]
+            res = self.res.x[3:3+len(self.exog.columns)]
+            print('{:<14}'.format(x),'{:>10.3e}'.format(init[i]),
+                  '{:>10.3e}'.format(res[i]),'{:>10.3e}'.format(4.23589),
                   '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
-                  '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
-                  '{:>10.3e}'.format(4.23589))
+                  '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589))
         # ar terms
         for i in range(self.p):
-            print('{:<14}'.format("ar.L"+str(i+1)),'{:>10.3e}'.format(4.23589),
+            init = self.init_params[:2]
+            res = self.res.x[:2]
+            print('{:<14}'.format("ar.L"+str(i+1)),'{:>10.3e}'.format(init[i]),
+                  '{:>10.3e}'.format(res[i]),'{:>10.3e}'.format(4.23589),
                   '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
-                  '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
-                  '{:>10.3e}'.format(4.23589))
+                  '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589))
         # ma terms
         for i in range(self.q):
+            init = self.init_params[3+len(self.exog.columns):]
+            res = self.res.x[3+len(self.exog.columns):]
             print('{:<14}'.format("ma.L"+str(i+1)),'{:>10.3e}'.format(4.23589),
                   '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
                   '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
-                  '{:>10.3e}'.format(4.23589))
-        print("="*80)
+                  '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589))
+        #sigma
+        print('{:<14}'.format("sigma"),'{:>10.3e}'.format(self.init_params[2]),
+              '{:>10.3e}'.format(self.res.x[2]),'{:>10.3e}'.format(4.23589),
+              '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
+              '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589))
+        print("="*91)
         
         
         
