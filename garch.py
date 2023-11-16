@@ -209,15 +209,15 @@ def predict_garch(params, r_prev, sig_prev, covs_prev, M, npred, p, q):
 preds=predict_garch(params, r_prevs, sigma_prevs, covs, 100, 5, p, q)
 #print(preds)
 
-def summary(params,i,sigma_prevs,r_prevs,p,q):
+def summary(params,i,sigma_prevs,r_prevs,p,q,d):
     """
     Prints the results 
     """
     print('{:^80}'.format("Results"))
     print("="*80)
-    print('{:<25}'.format("Dep. Variable:"),'{:>25}'.format(self.y.name))
+    print('{:<25}'.format("Dep. Variable:"),'{:>25}'.format("CPI returns"))
     print('{:<25}'.format("Model:"),'{:>13}'.format("GARCH("),p,",",q,")")
-    print('{:<25}'.format("No. Observations:"),'{:>25}'.format(len(self.y)))
+    print('{:<25}'.format("No. Observations:"),'{:>25}'.format(len(r_prevs)))
     print('{:<25}'.format("AIC"),'{:>25}'.format("AICvalue"))
     print('{:<25}'.format("BIC"),'{:>25}'.format("BICvalue"))
     print('{:<25}'.format("Log Likelihood"),'{:>25}'.format("Logvalue"))
@@ -226,26 +226,26 @@ def summary(params,i,sigma_prevs,r_prevs,p,q):
             '{:>10}'.format("P>|z|"),'{:>10}'.format("[0.025"),'{:>10}'.format("0.975]"))
     print("-"*80)
     # differencing term
-    if self.d == 0:
+    if d == 0:
         print('{:<14}'.format("const"),'{:>10.4f}'.format(4.23589),
                 '{:>10.4f}'.format(4.23589),'{:>10.4f}'.format(4.23589),
                 '{:>10.4f}'.format(4.23589),'{:>10.4f}'.format(4.23589),
                 '{:>10.4f}'.format(4.23589))
     # exogenious terms
-    for (i,x) in enumerate(self.exog.columns):
-        print('{:<14}'.format(x),'{:>10.3e}'.format(self.beta[i]),
+    for (j,x) in enumerate(covs):
+        print('{:<14}'.format(x),'{:>10.3e}'.format(covs[j]),
                 '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
                 '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
                 '{:>10.3e}'.format(4.23589))
     # ar terms
-    for i in range(self.p):
-        print('{:<14}'.format("ar.L"+str(i+1)),'{:>10.3e}'.format(self.phi[i]),
+    for j in range(p):
+        print('{:<14}'.format("ar.L"+str(j+1)),'{:>10.3e}'.format(sigma_prevs),
                 '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
                 '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
                 '{:>10.3e}'.format(4.23589))
     # ma terms
-    for i in range(self.q):
-        print('{:<14}'.format("ma.L"+str(i+1)),'{:>10.3e}'.format(4.23589),
+    for j in range(q):
+        print('{:<14}'.format("ma.L"+str(j+1)),'{:>10.3e}'.format(4.23589),
                 '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
                 '{:>10.3e}'.format(4.23589),'{:>10.3e}'.format(4.23589),
                 '{:>10.3e}'.format(4.23589))
