@@ -180,7 +180,7 @@ gF.summary(params, r, p, q, met, conf_ints)
 
 #Predictions for the GARCH(3,3) and plot of the predictions
 n_pred=50
-r_preds,x_preds=gF.predict_garch(params, r,cpi_diff, sigma_1,covs, 1000, n_pred, 3, 3)
+r_preds,x_preds=gF.predict_garch(params, r,cpi_diff, sigma_1,covs, 1000, n_pred, 3, 3,3)
 t=np.linspace(300,300+n_pred,n_pred)
 plt.figure()
 plt.plot(x_preds[:-n_pred],label="Differenced CPI")

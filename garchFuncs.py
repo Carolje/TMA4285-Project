@@ -94,7 +94,7 @@ def con_pos(x):
     return x**2
 
 
-def predict_garch(params, r_prev,x, sig_prev,covs_prev, M, npred, p, q):
+def predict_garch(params, r_prev,x, sig_prev,covs_prev, M, npred, p, q,m):
     """ Function to forecast values for a GARCH(p,q) model.
     Parameters:
     params: A (p+1+q+m)x1) vector with parameter estimates for alphas, betas and gammas. The parameters inn
