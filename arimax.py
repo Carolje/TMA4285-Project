@@ -75,7 +75,10 @@ class ARMAX:
          self.init_params = np.concatenate((np.append(evo, var), beta), axis = 0)       
          self.res = opt.minimize(self.kalman_log_likelihood, self.init_params, method ='BFGS')
          return self.res
-   
+    
+    def calc_aic(self):
+        return self.res.fun + 2*len(self.res.x)
+
     
     def summary(self):
         """
@@ -86,6 +89,7 @@ class ARMAX:
         p_val = (1-st.norm.cdf(abs(z_val)))*2
         lower = self.res.x - st.norm.ppf(0.95)*std_errors 
         upper = self.res.x + st.norm.ppf(0.95)*std_errors 
+        aic = self.calc_aic()
         
         
         """
@@ -96,7 +100,7 @@ class ARMAX:
         print('{:<25}'.format("Dep. Variable:"),'{:>25}'.format(self.y.name))
         print('{:<25}'.format("Model:"),'{:>17}'.format("ARIMAX("),self.p,",",self.q,")")
         print('{:<25}'.format("No. Observations:"),'{:>25}'.format(len(self.y)))
-        print('{:<25}'.format("AIC"),'{:>25}'.format("AICvalue"))
+        print('{:<25}'.format("AIC"),'{:>25.3e}'.format(aic))
         print('{:<25}'.format("BIC"),'{:>25}'.format("BICvalue"))
         print('{:<25}'.format("Log Likelihood"),'{:>25}'.format("Logvalue"))
         print("="*91)
