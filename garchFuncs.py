@@ -1,8 +1,9 @@
 import numpy as np
 import pandas as pd
-from scipy.optimize import minimize
+from scipy.optimize import minimize, approx_fprime
 from numpy.linalg import norm
 import numpy.random as nprand
+from numpy.linalg import norm
 
 def sample_variance(vec):
     return np.sum((vec-np.mean(vec))**2)/(len(vec)-1)
@@ -142,6 +143,74 @@ def logLikelihood(P,*args):
         l += -1/2*np.log(np.sqrt(2*np.pi)) -1/2*np.log(np.transpose(P)@K) -1/2*r_new[ti]**2/((np.transpose(P)@K))**2
     return float(-l)
 
+def garch_fit(alphas_init,betas_init,tol,r,covs,maxiter,p,q,m,sigma_init,gammas_init,N):
+    """ Function for fitting a GARCHX(p,q) model and estimating parameters.
+
+    Paramaters:
+    alphas_init: A ((p+1)x1) vector with initial guesses for the alphas
+    betas_init: A (qx1) vector with initial guesses for the betas
+    tol: Tolerance for allowed error, int.
+    r: A (Nx1) vector with values for the returns
+    covs: A (Nx3) vector with the data for the covariates
+    maxiter: The maximum number of allowed iterations, int.
+    p: The number of return regressors
+    q: The number of sigma regressors
+    m: the number of covariates
+    sigma_init: Initial value for sigma, int
+    gammas_init: A (3x1) vector with initial values for the gammas
+    N: Total number of returns, int
+
+    Fits a GARCH model with m covariates and estimates parameters for alphas, betas and gammas by using MLE.
+    The function terminates when the change in variables are less than the toleranse.
+
+    Returns: The estimated parameters, number of iterations, the returns used and the estimated sigmas.
+    """
+    not_tol=True
+    sigma_prevs=np.array([sigma_init])
+    r_prevs=r[0:p+2]
+    params_old=np.concatenate((alphas_init,betas_init,gammas_init))
+    for i in range(len(r_prevs)-1):
+        sigma=sigma_t_l(r_prevs[:i+1],sigma_prevs,params_old,p,q,m,covs[i,:])
+        sigma_prevs=np.append(sigma_prevs,sigma)
+    n_a=len(alphas_init)
+    n_b=len(betas_init)
+    cons={"type":"eq","fun":con_pos}
+    i=max(p,q)+1
+    while not_tol and i<maxiter:
+        print("iteration",i)
+        c=covs[i+3,:]
+        sigma=sigma_t_l(r_prevs,sigma_prevs,params_old,p,q,m,c)        
+        result=minimize(logLikelihood,params_old,method="SLSQP",args=(r_prevs,sigma_prevs,covs[:i+3,:],i,n_a-1,n_b),constraints=cons,tol=1e-2, options = {"maxiter": 20000,
+                                                                                                                                                              "disp": False}) #,jac=gF.score_1
+        new_params=result.x
+    
+        if np.linalg.norm(params_old - new_params)<tol:
+            not_tol=False
+        params_old=new_params
+        i+=1
+        r_prevs=np.append(r_prevs,r[i])
+        sigma_prevs=np.append(sigma_prevs,sigma)
+    return params_old,i,sigma_prevs,r_prevs
+
+def predict_garch(params, r_prev, sig_prev, covs_prev, M, npred, p, q):
+    r_pred=np.copy(r_prev)
+    for i in range(npred):
+        sigma=sigma_t_l(r_prev,sig_prev,params,p,q,3,covs_prev[-1,:])
+        mu=0
+        preds = nprand.normal(mu,sigma,M)
+        mp=np.mean(preds)
+        r_pred = np.append(r_pred,mp)
+    return r_pred
+"""
+a=r_prevs,sigma_prevs,covs[:len(r_prevs),:],len(r_prevs)-1,n_a,n_b
+
+def get_jacobian(params,*args):
+    return approx_fprime(params, logLikelihood,1.4901161193847656e-08,r_prevs,sigma_prevs,covs[:len(r_prevs),:],len(r_prevs)-1,n_a,n_b)
+
+def get_hessian(params):
+    return approx_fprime(params, get_jacobian,1.4901161193847656e-08,r_prevs,sigma_prevs,covs[:len(r_prevs),:],len(r_prevs)-1,n_a,n_b)
+"""
+
 def AIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
     AIC=2*k-2*logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
     return AIC
@@ -149,6 +218,7 @@ def AIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
 def BIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
     BIC=k*np.log(len(r_prevs))-2*logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
     return BIC
+
 def train_test_split(response, covs, perc):
     n = len(response)
     index_train = np.array(range(0,n-1))[0:int((n-1)*perc)]
@@ -159,6 +229,10 @@ def train_test_split(response, covs, perc):
     covs_test = covs[mask,]
     covs_train = covs[~mask,]
     return (response_test, response_train, covs_test, covs_train)
+
+def sample_variance(vec):
+    return np.sum((vec-np.mean(vec))**2)/(len(vec)-1)
+
 def AIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
     AIC=2*k+2*logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
     return AIC
