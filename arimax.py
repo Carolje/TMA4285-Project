@@ -68,31 +68,22 @@ class ARMAX:
             res_t = y[t] - obsv_matrix @ x_tt1[t] - exog_matrix @ exog[t] 
             neg_ll += np.log(np.abs(Sig_t)) + res_t**2/ np.abs(Sig_t)
 
-        #print(neg_ll)
+        print(neg_ll)
         return neg_ll
 
     def fit_kalman(self, evo, var, beta):
          self.init_params = np.concatenate((np.append(evo, var), beta), axis = 0)       
          self.res = opt.minimize(self.kalman_log_likelihood, self.init_params, method ='BFGS')
          return self.res
-     
-    def get_jacobian(self,params):
-        return opt.approx_fprime(params, self.kalman_log_likelihood)
-    
-    def get_hessian(self,params):
-        return opt.approx_fprime(params, self.get_jacobian)
-    
-    
    
     
     def summary(self):
         """
         Calulate the rest of the results
         """
-        H = self.get_hessian(self.res.x)
         std_errors = self.res.hess_inv.diagonal()
         z_val = self.res.x/std_errors
-        p_val = 1-st.norm.cdf(abs(z_val))
+        p_val = (1-st.norm.cdf(abs(z_val)))*2
         lower = self.res.x - st.norm.ppf(0.95)*std_errors 
         upper = self.res.x + st.norm.ppf(0.95)*std_errors 
         

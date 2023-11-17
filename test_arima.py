@@ -30,9 +30,9 @@ result.summary()
 
 ARX = model.ARMAX(2, 0,cpi_diff12[12:], exog[12:])
 ARX.pythonSolution()
-evo = np.array([-1.6242,-0.8331])
-var = 72
-beta = np.array([1.101e-8,-1e-4,0.0251,0.0449])
+evo = np.array([0.5,0.5])
+var = 10
+beta = np.array([0.5,0.5,0.5,0.5])
 opt = ARX.fit_kalman(evo, var, beta)
 ARX.summary()
 print(opt.hess_inv)
