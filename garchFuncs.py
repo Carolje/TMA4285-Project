@@ -6,6 +6,7 @@ import numpy.random as nprand
 from numpy.linalg import norm
 
 def sample_variance(vec):
+    """Function calculate the sample variance of the vector it gets as input. Output: sample variance"""
     return np.sum((vec-np.mean(vec))**2)/(len(vec)-1)
 
 def r_t(sigma,epsilon):
@@ -59,8 +60,6 @@ def logLikelihood(P,*args):
     n_b: The number of betas
 
     return: the calculated log-likelihood
-    
-
     """
     r,sigma,covs,t,n_a,n_b=args
     sigma_new = np.flip(sigma)
@@ -74,6 +73,98 @@ def logLikelihood(P,*args):
         K = np.concatenate((r_temp, sigma_new[-ti:-(ti-n_b)], covs[ti,:]))
         l += -1/2*np.log(np.sqrt(2*np.pi)) -1/2*np.log(np.transpose(P)@K) -1/2*r_new[ti]**2/((np.transpose(P)@K))**2
     return float(-l)
+
+def CIs(hess):
+    """Function to calculate the 95% CIs for the null hypothesis.
+    Input: the hessian matrix of the log-likelihood which is a ((p+q+m+1)x(p+q+m+1)) matrix
+    Output: Confidence intervals for each row of the Hessian. A ((p+q+m+1)x2) matrix, where each row contains the 
+            lower and upper bpunds of the confidence intervall. 
+    """
+    hess=np.linalg.inv(hess)
+    d=np.diag(hess)
+    conf_ints=np.zeros((len(d),2))
+    for i in range(len(d)):
+        u=1.96*np.abs(d[i])
+        l=-1.96*np.abs(d[i])
+        conf_ints[i,:]=[l,u]
+    return conf_ints
+
+def con_pos(x):
+    "Constraint for the minimizer specifying positive parameters. We square the parameters to make sure they are always positive."
+    return x**2
+
+
+def predict_garch(params, r_prev,x, sig_prev,covs_prev, M, npred, p, q):
+    """ Function to forecast values for a GARCH(p,q) model.
+    Parameters:
+    params: A (p+1+q+m)x1) vector with parameter estimates for alphas, betas and gammas. The parameters inn
+        these vector gets estimated by MLE.
+    r_prev: A (299X1) vector of previous return values.
+    x: A (300x1) vector with values for the differenced CPI
+    sig_prevs: A (q+1) vector with the sigma estimates for previous time steps
+    covs_prev: A (300xm) matrix of covariates
+    M: The number of draws from the normal distribution
+    npred: The number of timepoints we want to predict
+    p: The number of return regressors
+    q: The number of sigma regressors
+    m: the number of covariates
+
+    Output: 
+    r_preds: The r_prev input vector with n_pred predictions of the return appended to the end of the vector
+    x_preds: The x_prev input vector with n_pred predictions of the response appended to the end of the vector
+    """
+    r_pred=np.copy(r_prev)
+    x_pred=np.copy(x)
+    for i in range(npred):
+        sigma=sigma_t_l(r_prev,sig_prev,params,p,q,m,covs_prev[-1,:])
+        mu=0
+        preds = nprand.normal(mu,sigma,M)
+        mp=np.mean(preds)
+        r_pred = np.append(r_pred,mp)
+        x_i=r_pred[-1]*x_pred[-1]+x_pred[-1]
+        x_pred=np.append(x_pred,x_i)
+    return r_pred, x_pred
+
+def AIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
+    "Function to calculate the AIC"
+    AIC=2*k+2*logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
+    return AIC
+
+def BIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
+    "Function to calculate the BIC"
+    BIC=k*np.log(len(r_prevs))+2*logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
+    return BIC
+
+def summary(params,r_prevs,p,q,m,conf_ints):
+    """
+    Prints the results from the GARCH model
+    """
+    print('{:^80}'.format("Results"))
+    print("="*80)
+    print('{:<25}'.format("Dep. Variable:"),'{:>25}'.format("CPI returns"))
+    print('{:<25}'.format("Model:"),'{:>13}'.format("GARCH("),p,",",q,")")
+    print('{:<25}'.format("No. Observations:"),'{:>25}'.format(len(r_prevs)))
+    print('{:<25}'.format("AIC"),'{:>25}'.format(m[0]))
+    print('{:<25}'.format("BIC"),'{:>25}'.format(m[1]))
+    print("="*80)
+    print('{:>25}'.format("coef"),'{:>10}'.format("[0.025"),'{:>10}'.format("0.975]"))
+    print("-"*80)
+
+    names=[]
+    for i in range(p+1):
+        names.append(f"alpha {i}")
+    for i in range(q):
+        names.append(f"beta {i+1}")
+    names.append("Unemployed rate")
+    names.append("Policy rate")
+    names.append("Monthly salary")
+    for j in range(len(params)):
+        print('{:<14}'.format(names[j]),'{:>10.3e}'.format(params[j]),
+                '{:>10.3e}'.format(conf_ints[j,0]),
+                '{:>10.3e}'.format(conf_ints[j,1]))
+    print("="*80)
+
+#Unused functions
 
 
 def score_1(P,*args):
@@ -128,47 +219,6 @@ def Hessian_1(P,*args):
         hess += -1/2*(1/b)**(-2) * K@np.transpose(K) +1/4 * sum(np.square(r))*(b)**(-3) * K@np.transpose(K)
     return hess
 
-def CIs(hess):
-    hess=np.linalg.inv(hess)
-    d=np.diag(hess)
-    conf_ints=np.zeros((len(d),2))
-    for i in range(len(d)):
-        u=1.96*np.abs(d[i])
-        l=-1.96*np.abs(d[i])
-        conf_ints[i,:]=[l,u]
-    return conf_ints
-
-
-
-def con_pos(x):
-    "Constraint for the minimizer specifying positive parameters. "
-    return x**2
-
-
-def predict_garch(params, r_prev, sig_prev, covs_prev, M, npred, p, q):
-    r_pred=np.copy(r_prev)
-    for i in range(npred):
-        sigma=sigma_t_l(r_prev,sig_prev,params,p,q,3,covs_prev[-1,:])
-        mu=0
-        preds = nprand.normal(mu,sigma,M)
-        mp=np.mean(preds)
-        r_pred = np.append(r_pred,mp)
-    return r_pred
-
-def get_jacobian(params,*args):
-    return approx_fprime(params, logLikelihood,1.4901161193847656e-08,r_prevs,sigma_prevs,covs[:len(r_prevs),:],len(r_prevs)-1,n_a,n_b)
-
-def get_hessian(params):
-    return approx_fprime(params, get_jacobian,1.4901161193847656e-08,r_prevs,sigma_prevs,covs[:len(r_prevs),:],len(r_prevs)-1,n_a,n_b)
-
-
-def AIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
-    AIC=2*k-2*logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
-    return AIC
-
-def BIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
-    BIC=k*np.log(len(r_prevs))-2*logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
-    return BIC
 
 def train_test_split(response, covs, perc):
     n = len(response)
@@ -180,43 +230,3 @@ def train_test_split(response, covs, perc):
     covs_test = covs[mask,]
     covs_train = covs[~mask,]
     return (response_test, response_train, covs_test, covs_train)
-
-def sample_variance(vec):
-    return np.sum((vec-np.mean(vec))**2)/(len(vec)-1)
-
-def AIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
-    AIC=2*k+2*logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
-    return AIC
-
-def BIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
-    BIC=k*np.log(len(r_prevs))+2*logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
-    return BIC
-
-def summary(params,r_prevs,p,q,m,conf_ints):
-    """
-    Prints the results 
-    """
-    print('{:^80}'.format("Results"))
-    print("="*80)
-    print('{:<25}'.format("Dep. Variable:"),'{:>25}'.format("CPI returns"))
-    print('{:<25}'.format("Model:"),'{:>13}'.format("GARCH("),p,",",q,")")
-    print('{:<25}'.format("No. Observations:"),'{:>25}'.format(len(r_prevs)))
-    print('{:<25}'.format("AIC"),'{:>25}'.format(m[0]))
-    print('{:<25}'.format("BIC"),'{:>25}'.format(m[1]))
-    print("="*80)
-    print('{:>25}'.format("coef"),'{:>10}'.format("[0.025"),'{:>10}'.format("0.975]"))
-    print("-"*80)
-
-    names=[]
-    for i in range(p+1):
-        names.append(f"alpha {i}")
-    for i in range(q):
-        names.append(f"beta {i+1}")
-    names.append("Unemployed rate")
-    names.append("Policy rate")
-    names.append("Monthly salary")
-    for j in range(len(params)):
-        print('{:<14}'.format(names[j]),'{:>10.3e}'.format(params[j]),
-                '{:>10.3e}'.format(conf_ints[j,0]),
-                '{:>10.3e}'.format(conf_ints[j,1]))
-    print("="*80)
