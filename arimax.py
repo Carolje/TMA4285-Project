@@ -90,7 +90,7 @@ class ARMAX:
         Calulate the rest of the results
         """
         H = self.get_hessian(self.res.x)
-        std_errors = H.diagonal()**(-1)
+        std_errors = self.res.hess_inv.diagonal()
         z_val = self.res.x/std_errors
         p_val = 1-st.norm.cdf(abs(z_val))
         lower = self.res.x - st.norm.ppf(0.95)*std_errors 
