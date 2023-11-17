@@ -44,6 +44,38 @@ def sigma_t_l(r_prev,sigma_prev,params,p,q,m,covs):
     sum=a+b+g
     return np.sqrt(sum)
 
+def logLikelihood(P,*args):
+    """ Function that calculates the log likelihood.
+
+    Parameters:
+    P: A (p+q+m)x1) vector with parameter estimates for alphas, betas and gammas. The parameters inn
+        these vector gets estimated by MLE.
+    *args:
+    r: A (px1) vector of previous return values.
+    sigma: A (q+1) vector with the sigma estimates for previous time steps
+    covs: A (1xm) matrix of covariates for the current timestep
+    t: The current timestep
+    n_a: The number of alphas
+    n_b: The number of betas
+
+    return: the calculated log-likelihood
+    
+
+    """
+    r,sigma,covs,t,n_a,n_b=args
+    sigma_new = np.flip(sigma)
+    r_i = np.append(r,1)
+    r_i=np.array(r_i)
+    r_new=np.flip(r_i)
+    iter_start = max(n_a, n_b)
+    l=0
+    for ti in range(iter_start+1, t+1):
+        r_temp=np.concatenate((r_new[0:1],r_new[-ti:-(ti-n_a)]))
+        K = np.concatenate((r_temp, sigma_new[-ti:-(ti-n_b)], covs[ti,:]))
+        l += -1/2*np.log(np.sqrt(2*np.pi)) -1/2*np.log(np.transpose(P)@K) -1/2*r_new[ti]**2/((np.transpose(P)@K))**2
+    return float(-l)
+
+
 def score_1(P,*args):
     """
     Computes the score vector of the log-likelihood of a GARCH(q,p)-model with respect to the vector
@@ -112,85 +144,6 @@ def con_pos(x):
     "Constraint for the minimizer specifying positive parameters. "
     return x**2
 
-def logLikelihood(P,*args):
-    """ Function that calculates the log likelihood.
-
-    Parameters:
-    P: A (p+q+m)x1) vector with parameter estimates for alphas, betas and gammas. The parameters inn
-        these vector gets estimated by MLE.
-    *args:
-    r: A (px1) vector of previous return values.
-    sigma: A (q+1) vector with the sigma estimates for previous time steps
-    covs: A (1xm) matrix of covariates for the current timestep
-    t: The current timestep
-    n_a: The number of alphas
-    n_b: The number of betas
-
-    return: the calculated log-likelihood
-    
-
-    """
-    r,sigma,covs,t,n_a,n_b=args
-    sigma_new = np.flip(sigma)
-    r_i = np.append(r,1)
-    r_i=np.array(r_i)
-    r_new=np.flip(r_i)
-    iter_start = max(n_a, n_b)
-    l=0
-    for ti in range(iter_start+1, t+1):
-        r_temp=np.concatenate((r_new[0:1],r_new[-ti:-(ti-n_a)]))
-        K = np.concatenate((r_temp, sigma_new[-ti:-(ti-n_b)], covs[ti,:]))
-        l += -1/2*np.log(np.sqrt(2*np.pi)) -1/2*np.log(np.transpose(P)@K) -1/2*r_new[ti]**2/((np.transpose(P)@K))**2
-    return float(-l)
-
-def garch_fit(alphas_init,betas_init,tol,r,covs,maxiter,p,q,m,sigma_init,gammas_init,N):
-    """ Function for fitting a GARCHX(p,q) model and estimating parameters.
-
-    Paramaters:
-    alphas_init: A ((p+1)x1) vector with initial guesses for the alphas
-    betas_init: A (qx1) vector with initial guesses for the betas
-    tol: Tolerance for allowed error, int.
-    r: A (Nx1) vector with values for the returns
-    covs: A (Nx3) vector with the data for the covariates
-    maxiter: The maximum number of allowed iterations, int.
-    p: The number of return regressors
-    q: The number of sigma regressors
-    m: the number of covariates
-    sigma_init: Initial value for sigma, int
-    gammas_init: A (3x1) vector with initial values for the gammas
-    N: Total number of returns, int
-
-    Fits a GARCH model with m covariates and estimates parameters for alphas, betas and gammas by using MLE.
-    The function terminates when the change in variables are less than the toleranse.
-
-    Returns: The estimated parameters, number of iterations, the returns used and the estimated sigmas.
-    """
-    not_tol=True
-    sigma_prevs=np.array([sigma_init])
-    r_prevs=r[0:p+2]
-    params_old=np.concatenate((alphas_init,betas_init,gammas_init))
-    for i in range(len(r_prevs)-1):
-        sigma=sigma_t_l(r_prevs[:i+1],sigma_prevs,params_old,p,q,m,covs[i,:])
-        sigma_prevs=np.append(sigma_prevs,sigma)
-    n_a=len(alphas_init)
-    n_b=len(betas_init)
-    cons={"type":"eq","fun":con_pos}
-    i=max(p,q)+1
-    while not_tol and i<maxiter:
-        print("iteration",i)
-        c=covs[i+3,:]
-        sigma=sigma_t_l(r_prevs,sigma_prevs,params_old,p,q,m,c)        
-        result=minimize(logLikelihood,params_old,method="SLSQP",args=(r_prevs,sigma_prevs,covs[:i+3,:],i,n_a-1,n_b),constraints=cons,tol=1e-2, options = {"maxiter": 20000,
-                                                                                                                                                              "disp": False}) #,jac=gF.score_1
-        new_params=result.x
-    
-        if np.linalg.norm(params_old - new_params)<tol:
-            not_tol=False
-        params_old=new_params
-        i+=1
-        r_prevs=np.append(r_prevs,r[i])
-        sigma_prevs=np.append(sigma_prevs,sigma)
-    return params_old,i,sigma_prevs,r_prevs
 
 def predict_garch(params, r_prev, sig_prev, covs_prev, M, npred, p, q):
     r_pred=np.copy(r_prev)
@@ -201,15 +154,13 @@ def predict_garch(params, r_prev, sig_prev, covs_prev, M, npred, p, q):
         mp=np.mean(preds)
         r_pred = np.append(r_pred,mp)
     return r_pred
-"""
-a=r_prevs,sigma_prevs,covs[:len(r_prevs),:],len(r_prevs)-1,n_a,n_b
 
 def get_jacobian(params,*args):
     return approx_fprime(params, logLikelihood,1.4901161193847656e-08,r_prevs,sigma_prevs,covs[:len(r_prevs),:],len(r_prevs)-1,n_a,n_b)
 
 def get_hessian(params):
     return approx_fprime(params, get_jacobian,1.4901161193847656e-08,r_prevs,sigma_prevs,covs[:len(r_prevs),:],len(r_prevs)-1,n_a,n_b)
-"""
+
 
 def AIC(k,P,r_prevs,sigma_prevs,covs,t,n_a,n_b):
     AIC=2*k-2*logLikelihood(P,r_prevs,sigma_prevs,covs,t,n_a,n_b)
