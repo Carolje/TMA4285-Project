@@ -5,6 +5,7 @@ from statsmodels.tsa.arima.model import ARIMA
 import scipy.optimize as opt
 import statistics as s
 import scipy.stats as st
+import matplotlib.pyplot as plt
 
 
 class ARMAX:
@@ -45,7 +46,7 @@ class ARMAX:
         noise_state[0,0] = sigma2
 
         x_tt = np.zeros((len(y),2))
-        x_tt1 = np.zeros((len(y),2))
+        self.x_tt1 = np.zeros((len(y),2))
         P_tt = np.zeros((len(y),4))
         P_tt1 = np.zeros((len(y),4))
         x_tt[0] = x_0
@@ -54,27 +55,45 @@ class ARMAX:
         for t in range(1,len(x_tt)):
             # Kalman Filter
             #prediction
-            x_tt1[t] = evo_matrix @ x_tt[t-1]
+            self.x_tt1[t] = evo_matrix @ x_tt[t-1]
             P_tt1[t] = (evo_matrix @ P_tt[t-1].reshape((2,2)) @ evo_matrix.T + noise_state).reshape((1,4))
             #filter
             K_t = P_tt1[t].reshape((2,2)) @ obsv_matrix.T * 1/(obsv_matrix @ P_tt1[t].reshape((2,2)) @ obsv_matrix.T)
-            x_tt[t] = x_tt1[t] + K_t * (y[t] - obsv_matrix @ x_tt1[t] - exog_matrix @ exog[t])
+            x_tt[t] = self.x_tt1[t] + K_t * (y[t] - obsv_matrix @ self.x_tt1[t] - exog_matrix @ exog[t])
             P_tt[t] = ((np.identity(2) - K_t @ obsv_matrix) @ P_tt1[t].reshape((2,2))).reshape((1,4))
             
         # Likelihood and minimize
         neg_ll = 0
         for t in range(1,len(x_tt)):
             Sig_t = obsv_matrix @ P_tt1[t].reshape((2,2)) @ obsv_matrix.T
-            res_t = y[t] - obsv_matrix @ x_tt1[t] - exog_matrix @ exog[t] 
+            res_t = y[t] - obsv_matrix @ self.x_tt1[t] - exog_matrix @ exog[t] 
             neg_ll += np.log(np.abs(Sig_t)) + res_t**2/ np.abs(Sig_t)
 
-        print(neg_ll)
         return neg_ll
 
     def fit_kalman(self, evo, var, beta):
          self.init_params = np.concatenate((np.append(evo, var), beta), axis = 0)       
          self.res = opt.minimize(self.kalman_log_likelihood, self.init_params, method ='BFGS')
          return self.res
+    
+    def plot(self):
+        """
+        Forcasting with ARMA and plotting the results
+        """
+        # A 1x2
+        obsv_matrix = np.zeros(self.p)      
+        obsv_matrix[0] = 1
+        # H 1x4
+        exog_matrix = self.res.x[3:]
+        
+        i = np.linspace(0,len(self.y)-1,300)
+        plt.figure(1)
+        plt.plot(np.append(i[1:],300),obsv_matrix @ self.x_tt1.T + exog_matrix @ np.array(self.exog).T,label="Predicted value")
+        plt.plot(i, np.array(self.y),label="Real Value")
+        plt.legend()
+        plt.title("Forecasting for one step into the future for ARMAX")
+        
+        
     
     def calc_aic(self):
         return self.res.fun + 2*len(self.res.x)
@@ -90,6 +109,9 @@ class ARMAX:
         lower = self.res.x - st.norm.ppf(0.95)*std_errors 
         upper = self.res.x + st.norm.ppf(0.95)*std_errors 
         aic = self.calc_aic()
+        n = len(self.y)
+        k = len(self.res.x)
+        bic = aic - (n+2*k)/n + k*np.log(n)/n
         
         
         """
@@ -98,11 +120,11 @@ class ARMAX:
         print('{:^51}'.format("Results"))
         print("="*51)
         print('{:<25}'.format("Dep. Variable:"),'{:>25}'.format(self.y.name))
-        print('{:<25}'.format("Model:"),'{:>17}'.format("ARIMAX("),self.p,",",self.q,")")
-        print('{:<25}'.format("No. Observations:"),'{:>25}'.format(len(self.y)))
+        print('{:<25}'.format("Model:"),'{:>17}'.format("ARMAX("),self.p,",",self.q,")")
+        print('{:<25}'.format("No. Observations:"),'{:>25}'.format(n))
         print('{:<25}'.format("AIC"),'{:>25.3e}'.format(aic))
-        print('{:<25}'.format("BIC"),'{:>25}'.format("BICvalue"))
-        print('{:<25}'.format("Log Likelihood"),'{:>25}'.format("Logvalue"))
+        print('{:<25}'.format("BIC"),'{:>25.3e}'.format(bic))
+        print('{:<25}'.format("Log Likelihood"),'{:>25.3e}'.format(-1/2*self.res.fun))
         print("="*91)
         print('{:>25}'.format("init.values"),'{:>10}'.format("coef"),'{:>10}'.format("std.err"),'{:>10}'.format("z"),
               '{:>10}'.format("P>|z|"),'{:>10}'.format("[0.025"),'{:>10}'.format("0.975]"))
@@ -168,6 +190,8 @@ class ARMAX:
         result = model1.fit()
         print(result.summary())
         
+        
+    
 
 
 

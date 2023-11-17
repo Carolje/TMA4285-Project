@@ -35,4 +35,4 @@ var = 10
 beta = np.array([0.5,0.5,0.5,0.5])
 opt = ARX.fit_kalman(evo, var, beta)
 ARX.summary()
-print(opt.hess_inv)
+ARX.plot()
